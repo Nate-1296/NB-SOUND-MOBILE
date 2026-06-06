@@ -1,0 +1,10 @@
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # El contrato del PC usa snake_case; los DTOs usan camelCase.
+          field_rename: snake
+          create_to_json: true
+          # Serializa DTOs anidados llamando a su toJson() (listas incluidas).
+          explicit_to_json: true

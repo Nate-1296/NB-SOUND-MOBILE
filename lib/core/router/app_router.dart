@@ -1,0 +1,154 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../app/app_shell.dart';
+import '../../features/library/presentation/screens/album_detail_screen.dart';
+import '../../features/library/presentation/screens/artist_detail_screen.dart';
+import '../../features/library/presentation/screens/biblioteca_screen.dart';
+import '../../features/library/presentation/screens/buscar_screen.dart';
+import '../../features/library/presentation/screens/inicio_screen.dart';
+import '../../features/library/presentation/screens/local_playlist_detail_screen.dart';
+import '../../features/library/presentation/screens/playlist_detail_screen.dart';
+import '../../features/library/presentation/screens/playlists_screen.dart';
+import '../../features/offline/presentation/descargas_screen.dart';
+import '../../features/player/presentation/player_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/sync/presentation/sync_screen.dart';
+
+final GlobalKey<NavigatorState> _rootKey =
+    GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> _shellKey =
+    GlobalKey<NavigatorState>(debugLabel: 'shell');
+
+/// Convierte un parámetro de ruta a entero, con fallback defensivo a 0.
+int _intParam(GoRouterState state, String name) =>
+    int.tryParse(state.pathParameters[name] ?? '') ?? 0;
+
+/// Router de la app. Pestañas en un [StatefulShellRoute] (bottom nav
+/// persistente); detalle y overlays (player/perfil/sync) sobre el navegador
+/// raíz a pantalla completa.
+final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
+  return GoRouter(
+    navigatorKey: _rootKey,
+    initialLocation: '/inicio',
+    routes: <RouteBase>[
+      StatefulShellRoute.indexedStack(
+        parentNavigatorKey: _rootKey,
+        builder: (
+          BuildContext context,
+          GoRouterState state,
+          StatefulNavigationShell navigationShell,
+        ) {
+          return AppShell(navigationShell: navigationShell);
+        },
+        branches: <StatefulShellBranch>[
+          StatefulShellBranch(
+            navigatorKey: _shellKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/inicio',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const InicioScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/buscar',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const BuscarScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/biblioteca',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const BibliotecaScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/playlists',
+                builder: (BuildContext context, GoRouterState state) =>
+                    const PlaylistsScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/album/:id',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            AlbumDetailScreen(albumId: _intParam(state, 'id')),
+      ),
+      GoRoute(
+        path: '/artist/:id',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            ArtistDetailScreen(artistId: _intParam(state, 'id')),
+      ),
+      GoRoute(
+        path: '/playlist/:id',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            PlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+      ),
+      GoRoute(
+        path: '/playlist-local/:id',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            LocalPlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+      ),
+      GoRoute(
+        path: '/player',
+        parentNavigatorKey: _rootKey,
+        pageBuilder: (BuildContext context, GoRouterState state) =>
+            CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration: const Duration(milliseconds: 320),
+          child: const PlayerScreen(),
+          transitionsBuilder: _slideUp,
+        ),
+      ),
+      GoRoute(
+        path: '/profile',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/sync',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const SyncScreen(),
+      ),
+      GoRoute(
+        path: '/descargas',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const DescargasScreen(),
+      ),
+    ],
+  );
+});
+
+/// Transición de deslizamiento hacia arriba (estilo reproductor).
+Widget _slideUp(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
+  final Animation<Offset> offset = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+  return SlideTransition(position: offset, child: child);
+}

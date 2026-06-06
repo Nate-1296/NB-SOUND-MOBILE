@@ -1,0 +1,38 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+# pubspec.lock: esto es una APP (publish_to: none), no una librería → SE VERSIONA
+# para obtener builds reproducibles. (Solo las librerías deben ignorarlo.)
+
+# Generado por codegen (se regenera con: dart run build_runner build)
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Plataformas regenerables con `flutter create .` (sin personalización propia).
+# android/ NO se ignora a propósito: contiene configuración nativa irremplazable
+# (firma en app/build.gradle.kts, app/proguard-rules.pro del fix R8/ML Kit,
+# res/xml/network_security_config.xml, AndroidManifest e íconos). Los artefactos
+# generados y los secretos dentro de android/ los cubre android/.gitignore.
+/ios/
+/linux/
+/macos/
+/windows/
+/web/
+
+# Secretos de firma (defensa en profundidad; android/.gitignore ya los cubre).
+# CUSTODIAR fuera del repo: sin la keystore no hay actualizaciones en Play Store.
+android/key.properties
+*.jks
+*.keystore
+
+# SO
+.DS_Store

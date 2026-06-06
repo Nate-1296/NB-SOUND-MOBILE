@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  El tráfico al PC va por HTTPS con pinning por huella (TOFU); no se permite
+  cleartext hacia la red. La ÚNICA excepción es loopback (127.0.0.1/localhost):
+  just_audio expone un proxy HTTP local para reproducir fuentes con cabeceras
+  (streaming autenticado del PC), y ExoPlayer conecta a ese proxy en cleartext.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

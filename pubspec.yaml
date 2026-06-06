@@ -1,0 +1,89 @@
+name: nb_sound_mobile
+description: "App móvil del ecosistema NB Sound (Android, iOS y tablets)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+  flutter: ">=3.29.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- Estado / DI ---
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
+
+  # --- Navegación ---
+  go_router: ^17.3.0
+
+  # --- Base de datos local (SQLite type-safe) ---
+  drift: ^2.33.0
+  sqlite3_flutter_libs: ^0.6.0
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+  # --- Audio (reproducción + background) ---
+  just_audio: ^0.10.5
+  audio_service: ^0.18.18
+
+  # --- Red: sync (HTTP) + control remoto (WebSocket) ---
+  dio: ^5.9.2
+  web_socket_channel: ^3.0.3
+
+  # --- Descubrimiento / emparejamiento ---
+  mobile_scanner: ^7.2.0        # escaneo de QR
+  nsd: ^5.0.1                   # mDNS / DNS-SD (descubrir el PC)
+  flutter_secure_storage: ^10.3.1  # device_token + tls_fingerprint (TOFU)
+
+  # --- Utilidades ---
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+  collection: ^1.18.0
+  crypto: ^3.0.3               # validar hash_sha256 del audio descargado
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # --- Codegen ---
+  build_runner: ^2.15.0
+  riverpod_generator: ^4.0.3
+  drift_dev: ^2.33.0
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
+
+  # --- Generación del ícono de la app (build-time, no se empaqueta) ---
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  # Sin media de catálogo empaquetada: audio y portadas llegan del PC vía
+  # sync/streaming. La media de ejemplo del seed (assets/audio, assets/covers) y
+  # el logo (assets/images, fuente del ícono) NO se declaran aquí para no incluir
+  # datos de prueba en el APK. Si se necesita una demo offline con audio/portadas,
+  # re-declarar temporalmente assets/audio y assets/covers.
+
+  # Fuentes variables (eje wght). Flutter mapea fontWeight al eje automáticamente.
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope.ttf
+
+# Ícono de la app (Android). Generar con: dart run flutter_launcher_icons
+# Fuente: logo NB Sound. El ícono adaptativo usa el terracota de marca como fondo;
+# la herramienta aplica un inset del 16% al foreground para respetar la zona
+# segura, por eso se pasa el logo completo (no uno pre-reducido).
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/logo_lg.png"
+  adaptive_icon_background: "#C25939"
+  adaptive_icon_foreground: "assets/images/logo_lg.png"
+  min_sdk_android: 21

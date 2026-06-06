@@ -1,0 +1,72 @@
+import 'dart:io';
+
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import 'daos/catalog_dao.dart';
+import 'daos/downloads_dao.dart';
+import 'daos/favorites_dao.dart';
+import 'daos/history_dao.dart';
+import 'daos/local_playlists_dao.dart';
+import 'daos/sync_state_dao.dart';
+import 'tables.dart';
+
+part 'database.g.dart';
+
+/// Base de datos local (Drift/SQLite). Réplica de catálogo + fuente de verdad
+/// del historial/favoritos del móvil. Ver docs/local-data.md.
+@DriftDatabase(
+  tables: <Type>[
+    Artistas,
+    Albums,
+    Pistas,
+    Playlists,
+    PlaylistPistas,
+    PlaylistsLocales,
+    PlaylistLocalPistas,
+    HistorialLocal,
+    FavoritosLocal,
+    DescargasAudio,
+    SyncEstado,
+    PcEmparejado,
+  ],
+  daos: <Type>[
+    CatalogDao,
+    HistoryDao,
+    FavoritesDao,
+    DownloadsDao,
+    SyncStateDao,
+    LocalPlaylistsDao,
+  ],
+)
+class AppDatabase extends _$AppDatabase {
+  AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
+
+  /// Constructor para tests con BD en memoria.
+  AppDatabase.forTesting(super.executor);
+
+  @override
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) => m.createAll(),
+        onUpgrade: (Migrator m, int from, int to) async {
+          // v2: playlists locales del teléfono (editables, fuera del sync).
+          if (from < 2) {
+            await m.createTable(playlistsLocales);
+            await m.createTable(playlistLocalPistas);
+          }
+        },
+      );
+
+  static QueryExecutor _open() {
+    return LazyDatabase(() async {
+      final Directory dir = await getApplicationDocumentsDirectory();
+      final File file = File(p.join(dir.path, 'nb_sound.sqlite'));
+      return NativeDatabase.createInBackground(file);
+    });
+  }
+}
