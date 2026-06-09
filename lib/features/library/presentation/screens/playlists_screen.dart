@@ -22,8 +22,10 @@ class PlaylistsScreen extends ConsumerWidget {
     final NbColors c = context.nb;
     final List<PlaylistLocal> locales =
         ref.watch(playlistsLocalesProvider).value ?? const <PlaylistLocal>[];
-    final List<Playlist> delPc =
-        ref.watch(playlistsProvider).value ?? const <Playlist>[];
+    // "Tus playlists" = locales + playlists del PC guardadas; "Del PC" = el resto.
+    final List<Playlist> guardadas = ref.watch(playlistsGuardadasProvider);
+    final List<Playlist> delPc = ref.watch(playlistsDelPcNoGuardadasProvider);
+    final bool hayTuyas = locales.isNotEmpty || guardadas.isNotEmpty;
 
     return Column(
       children: <Widget>[
@@ -42,7 +44,7 @@ class PlaylistsScreen extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: (locales.isEmpty && delPc.isEmpty)
+          child: (!hayTuyas && delPc.isEmpty)
               ? _Empty(onCrear: () async {
                   final int? id = await crearPlaylistLocal(context, ref);
                   if (id != null && context.mounted) {
@@ -52,12 +54,14 @@ class PlaylistsScreen extends ConsumerWidget {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
                   children: <Widget>[
-                    if (locales.isNotEmpty) ...<Widget>[
+                    if (hayTuyas) ...<Widget>[
                       const _Header(label: 'Tus playlists'),
                       _Grid(
                         children: <Widget>[
                           for (final PlaylistLocal pl in locales)
                             LocalPlaylistCard(playlist: pl),
+                          for (final Playlist pl in guardadas)
+                            PlaylistCard(playlist: pl),
                         ],
                       ),
                     ],

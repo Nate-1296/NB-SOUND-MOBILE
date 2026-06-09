@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/db/daos/assets_dao.dart';
 import '../../data/db/daos/catalog_dao.dart';
 import '../../data/db/daos/downloads_dao.dart';
 import '../../data/db/daos/favorites_dao.dart';
+import '../../data/db/daos/followed_playlists_dao.dart';
 import '../../data/db/daos/history_dao.dart';
 import '../../data/db/daos/local_playlists_dao.dart';
 import '../../data/db/daos/sync_state_dao.dart';
@@ -44,6 +46,10 @@ final Provider<DownloadsDao> downloadsDaoProvider = Provider<DownloadsDao>(
   (Ref ref) => ref.watch(databaseProvider).downloadsDao,
 );
 
+final Provider<AssetsDao> assetsDaoProvider = Provider<AssetsDao>(
+  (Ref ref) => ref.watch(databaseProvider).assetsDao,
+);
+
 final Provider<SyncStateDao> syncStateDaoProvider = Provider<SyncStateDao>(
   (Ref ref) => ref.watch(databaseProvider).syncStateDao,
 );
@@ -51,4 +57,9 @@ final Provider<SyncStateDao> syncStateDaoProvider = Provider<SyncStateDao>(
 final Provider<LocalPlaylistsDao> localPlaylistsDaoProvider =
     Provider<LocalPlaylistsDao>(
   (Ref ref) => ref.watch(databaseProvider).localPlaylistsDao,
+);
+
+final Provider<FollowedPlaylistsDao> followedPlaylistsDaoProvider =
+    Provider<FollowedPlaylistsDao>(
+  (Ref ref) => ref.watch(databaseProvider).followedPlaylistsDao,
 );

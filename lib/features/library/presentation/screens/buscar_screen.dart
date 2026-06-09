@@ -105,9 +105,10 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
         subtitle: 'Prueba con otro término.',
       );
     }
-    return SingleChildScrollView(
+    return PistaListView(
+      pistas: resultados,
+      comoColeccion: false,
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-      child: PistaList(pistas: resultados, comoColeccion: false),
     );
   }
 }

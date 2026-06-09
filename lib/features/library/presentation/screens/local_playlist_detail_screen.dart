@@ -7,11 +7,10 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
-import '../../../../shared/util/media_source.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
+import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/player_controller.dart';
-import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
 import '../widgets/playlist_dialogs.dart';
 
@@ -33,12 +32,15 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistLocalProvider(playlistId)).value ??
             const <Pista>[];
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
     final double total =
         pistas.fold<double>(0, (double a, Pista p) => a + p.duracionSeg);
+    final int coversPx = coverCachePx(context, 200);
     final List<ImageProvider> covers = <ImageProvider>[
       for (final Pista p in pistas)
-        if (coverImage(p.coverPath, remote) case final ImageProvider img) img,
+        if (resolver.imageFor(p.coverPath, cacheWidth: coversPx)
+            case final ImageProvider img)
+          img,
     ];
 
     return Scaffold(
@@ -182,7 +184,7 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                         return _TrackRow(
                           key: ValueKey<int>(p.id),
                           pista: p,
-                          remote: remote,
+                          resolver: resolver,
                           onPlay: () => ref
                               .read(playerControllerProvider.notifier)
                               .reproducir(pistas, i),
@@ -296,13 +298,13 @@ class _TrackRow extends StatelessWidget {
   const _TrackRow({
     super.key,
     required this.pista,
-    required this.remote,
+    required this.resolver,
     required this.onPlay,
     required this.onRemove,
   });
 
   final Pista pista;
-  final RemoteMedia? remote;
+  final CoverResolver resolver;
   final VoidCallback onPlay;
   final VoidCallback onRemove;
 
@@ -314,7 +316,10 @@ class _TrackRow extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: onPlay,
       leading: Cover(
-        image: coverImage(pista.coverPath, remote),
+        image: resolver.imageFor(
+          pista.coverPath,
+          cacheWidth: coverCachePx(context, 44),
+        ),
         size: 44,
         radius: 8,
         shadow: false,

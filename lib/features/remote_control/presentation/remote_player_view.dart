@@ -4,10 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/duration_format.dart';
 import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
-import '../../../shared/util/media_source.dart';
 import '../../../shared/widgets/app_icons.dart';
 import '../../../shared/widgets/cover.dart';
-import '../../sync/application/remote_media_provider.dart';
+import '../../offline/application/image_resolver.dart';
 import '../application/remote_controller.dart';
 import '../data/remote_dtos.dart';
 import 'destination_sheet.dart';
@@ -22,8 +21,10 @@ class RemotePlayerView extends ConsumerWidget {
     final RemoteState s = ref.watch(remoteControllerProvider);
     final RemoteController ctrl = ref.read(remoteControllerProvider.notifier);
     final RemotePistaDto? p = s.pista;
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
-    final ImageProvider? cover = coverImage(p?.coverUrl, remote);
+    final ImageProvider? cover = ref.watch(coverResolverProvider).imageFor(
+          p?.coverUrl,
+          cacheWidth: coverCachePx(context, 300),
+        );
 
     return Scaffold(
       backgroundColor: c.bg,

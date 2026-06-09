@@ -5,16 +5,75 @@ import '../../../../core/di/providers.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
-import '../../../../shared/util/media_source.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/track_row.dart';
 import '../../../offline/application/download_providers.dart';
+import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../../player/application/player_controller.dart';
 import '../../../remote_control/application/remote_controller.dart';
-import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
 import 'playlist_dialogs.dart';
+
+/// Dependencias compartidas para construir filas de pista, recogidas **una vez
+/// por lista** (no por fila) para que un `ListView.builder` no observe providers
+/// en cada item.
+typedef PistaRowDeps = ({
+  Set<int> favoritas,
+  Set<int> descargadas,
+  int? currentId,
+  CoverResolver resolver,
+});
+
+PistaRowDeps pistaRowDeps(WidgetRef ref) => (
+      favoritas: ref.watch(favoritasIdsProvider).value ?? const <int>{},
+      descargadas: ref.watch(descargadasProvider).value ?? const <int>{},
+      currentId: ref.watch(
+        playerControllerProvider.select((PlayerState s) => s.current?.id),
+      ),
+      resolver: ref.watch(coverResolverProvider),
+    );
+
+/// Construye una fila de pista. Compartido por la lista no-scrollable [PistaList]
+/// y por los `ListView.builder`/slivers de las pantallas grandes (pestaña Pistas,
+/// búsqueda, álbum, artista, playlist) para no duplicar lógica de tap/estado.
+Widget pistaRow(
+  BuildContext context,
+  WidgetRef ref,
+  List<Pista> pistas,
+  int i,
+  PistaRowDeps deps, {
+  bool comoColeccion = true,
+  bool numbered = false,
+  bool showCover = true,
+}) {
+  final Pista p = pistas[i];
+  return TrackRow(
+    title: p.titulo,
+    subtitle: p.albumTitulo == null
+        ? p.artistaNombre
+        : '${p.artistaNombre} · ${p.albumTitulo}',
+    cover: showCover
+        ? deps.resolver
+            .imageFor(p.coverPath, cacheWidth: coverCachePx(context, 48))
+        : null,
+    durationSeconds: p.duracionSeg,
+    index: numbered ? i + 1 : null,
+    showCover: showCover,
+    playing: p.id == deps.currentId,
+    liked: deps.favoritas.contains(p.id),
+    downloaded: deps.descargadas.contains(p.id),
+    onTap: () {
+      final ctrl = ref.read(playerControllerProvider.notifier);
+      if (comoColeccion) {
+        ctrl.reproducir(pistas, i);
+      } else {
+        ctrl.reproducir(<Pista>[p], 0);
+      }
+    },
+    onMore: () => mostrarMenuPista(context, ref, p),
+  );
+}
 
 /// Lista (no scrollable) de pistas: reproduce en su propia cola al tocar,
 /// resalta la pista en curso y marca las favoritas. El llamador la envuelve en
@@ -38,40 +97,95 @@ class PistaList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final Set<int> favoritas =
-        ref.watch(favoritasIdsProvider).value ?? const <int>{};
-    final Set<int> descargadas =
-        ref.watch(descargadasProvider).value ?? const <int>{};
-    final int? currentId =
-        ref.watch(playerControllerProvider.select((PlayerState s) => s.current?.id));
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
-
+    final PistaRowDeps deps = pistaRowDeps(ref);
     return Column(
       children: <Widget>[
         for (int i = 0; i < pistas.length; i++)
-          TrackRow(
-            title: pistas[i].titulo,
-            subtitle: pistas[i].albumTitulo == null
-                ? pistas[i].artistaNombre
-                : '${pistas[i].artistaNombre} · ${pistas[i].albumTitulo}',
-            cover: showCover ? coverImage(pistas[i].coverPath, remote) : null,
-            durationSeconds: pistas[i].duracionSeg,
-            index: numbered ? i + 1 : null,
+          pistaRow(
+            context,
+            ref,
+            pistas,
+            i,
+            deps,
+            comoColeccion: comoColeccion,
+            numbered: numbered,
             showCover: showCover,
-            playing: pistas[i].id == currentId,
-            liked: favoritas.contains(pistas[i].id),
-            downloaded: descargadas.contains(pistas[i].id),
-            onTap: () {
-              final ctrl = ref.read(playerControllerProvider.notifier);
-              if (comoColeccion) {
-                ctrl.reproducir(pistas, i);
-              } else {
-                ctrl.reproducir(<Pista>[pistas[i]], 0);
-              }
-            },
-            onMore: () => mostrarMenuPista(context, ref, pistas[i]),
           ),
       ],
+    );
+  }
+}
+
+/// Lista de pistas **lazy** y scrollable por sí misma (`ListView.builder`), para
+/// colecciones grandes (pestaña Pistas, búsqueda). Recoge las dependencias una
+/// sola vez y construye filas bajo demanda.
+class PistaListView extends ConsumerWidget {
+  const PistaListView({
+    super.key,
+    required this.pistas,
+    this.comoColeccion = true,
+    this.numbered = false,
+    this.showCover = true,
+    this.padding,
+  });
+
+  final List<Pista> pistas;
+  final bool comoColeccion;
+  final bool numbered;
+  final bool showCover;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PistaRowDeps deps = pistaRowDeps(ref);
+    return ListView.builder(
+      padding: padding,
+      itemCount: pistas.length,
+      itemBuilder: (BuildContext context, int i) => pistaRow(
+        context,
+        ref,
+        pistas,
+        i,
+        deps,
+        comoColeccion: comoColeccion,
+        numbered: numbered,
+        showCover: showCover,
+      ),
+    );
+  }
+}
+
+/// Variante **sliver** y lazy (`SliverList.builder`) para pantallas con cabecera
+/// scrollable (detalle de álbum/artista/playlist), dentro de un `CustomScrollView`.
+class PistaSliverList extends ConsumerWidget {
+  const PistaSliverList({
+    super.key,
+    required this.pistas,
+    this.comoColeccion = true,
+    this.numbered = false,
+    this.showCover = true,
+  });
+
+  final List<Pista> pistas;
+  final bool comoColeccion;
+  final bool numbered;
+  final bool showCover;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PistaRowDeps deps = pistaRowDeps(ref);
+    return SliverList.builder(
+      itemCount: pistas.length,
+      itemBuilder: (BuildContext context, int i) => pistaRow(
+        context,
+        ref,
+        pistas,
+        i,
+        deps,
+        comoColeccion: comoColeccion,
+        numbered: numbered,
+        showCover: showCover,
+      ),
     );
   }
 }

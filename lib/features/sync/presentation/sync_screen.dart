@@ -127,11 +127,183 @@ class _Intro extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                // Alternativa sin cámara (Chromebook, cámara dañada, etc.):
+                // escribir la IP del PC. La app descubre el puerto y fija la
+                // huella TLS automáticamente; solo hace falta el código del QR.
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _mostrarConexionIp(context, ref),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: c.text2,
+                      side: BorderSide(color: c.line2),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: Icon(AppIcons.laptop, color: c.text2, size: 18),
+                    label: Text(
+                      'Sin cámara: conectar por IP',
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: c.text2,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Hoja de conexión manual por IP (sin cámara).
+Future<void> _mostrarConexionIp(BuildContext context, WidgetRef ref) {
+  final NbColors c = context.nb;
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: c.bg2,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (BuildContext _) => const _ManualIpSheet(),
+  );
+}
+
+class _ManualIpSheet extends ConsumerStatefulWidget {
+  const _ManualIpSheet();
+
+  @override
+  ConsumerState<_ManualIpSheet> createState() => _ManualIpSheetState();
+}
+
+class _ManualIpSheetState extends ConsumerState<_ManualIpSheet> {
+  final TextEditingController _dir = TextEditingController();
+  final TextEditingController _codigo = TextEditingController();
+
+  @override
+  void dispose() {
+    _dir.dispose();
+    _codigo.dispose();
+    super.dispose();
+  }
+
+  void _conectar() {
+    final String dir = _dir.text.trim();
+    final String code = _codigo.text.trim();
+    if (dir.isEmpty || code.isEmpty) {
+      return;
+    }
+    // Cierra la hoja; la pantalla principal refleja connecting→connected/error.
+    Navigator.of(context).pop();
+    ref.read(syncControllerProvider.notifier).conectarPorIp(dir, code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        18,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Conectar por IP',
+            style: TextStyle(
+              fontFamily: NbFonts.display,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: c.text,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'En el PC, abre NB Sound → Sincronizar. Escribe la "Dirección en la '
+            'red local" y el código del QR.',
+            style: TextStyle(
+              fontFamily: NbFonts.ui,
+              fontSize: 13,
+              height: 1.45,
+              color: c.text2,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _dir,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
+            decoration: _dec(c, 'Dirección del PC', 'p. ej. 192.168.1.40:8731'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _codigo,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _conectar(),
+            style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
+            decoration: _dec(c, 'Código de un solo uso', 'el del QR'),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _conectar,
+              style: FilledButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: c.ink,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                'Conectar',
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: c.ink,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _dec(NbColors c, String label, String hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: TextStyle(color: c.text2, fontFamily: NbFonts.ui),
+      hintStyle: TextStyle(color: c.text3, fontFamily: NbFonts.ui),
+      filled: true,
+      fillColor: c.bg,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: c.line2),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: c.accent),
+      ),
     );
   }
 }
@@ -602,6 +774,11 @@ class _ErrorView extends ConsumerWidget {
         'No se pudo conectar con el PC. Verifica que ambos estén en la misma '
         'red local.',
     'respuesta_invalida': 'El PC respondió algo inesperado.',
+    'pc_no_encontrado':
+        'No se encontró NB Sound en esa IP. Revisa la dirección y que el '
+        'servidor esté encendido en el PC (misma red).',
+    'direccion_invalida': 'La dirección no es válida. Usa la IP o IP:puerto.',
+    'datos_incompletos': 'Escribe la IP del PC y el código de un solo uso.',
   };
 
   @override
@@ -631,13 +808,14 @@ class _ErrorView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
+                  // Vuelve a la intro: el usuario elige reintentar por QR o IP.
                   onPressed: () =>
-                      ref.read(syncControllerProvider.notifier).startScan(),
+                      ref.read(syncControllerProvider.notifier).cancel(),
                   style: FilledButton.styleFrom(
                     backgroundColor: c.accent,
                     foregroundColor: c.ink,
                   ),
-                  child: const Text('Reintentar'),
+                  child: const Text('Volver'),
                 ),
               ],
             ),

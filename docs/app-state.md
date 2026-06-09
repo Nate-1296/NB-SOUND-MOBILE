@@ -166,6 +166,40 @@ universal (~77 MB) y `--split-per-abi` (arm64 ~30 MB). Copias en `dist/`.
 Verificado: firma = keystore release, identidad/ícono correctos, APK sin
 covers/audio/images.
 
+## Paso de datos PC→celular cerrado + en vivo (2026-06-08) — schema v4
+
+Cierre del flujo de descargas y mantenimiento en vivo (`flutter analyze` limpio,
+**84 tests**):
+
+- **Playlists del PC guardadas/seguidas**: tabla propia `playlists_guardadas`
+  (estado del móvil, aparte del catálogo; sobrevive al sync). En el detalle de
+  una playlist del PC, "Guardar" la pasa a **Tus playlists** y descarga todo su
+  contenido; el mantenimiento baja las pistas nuevas que el PC añada. `deletePlaylist`
+  (tombstone) limpia la guardada. DAO `FollowedPlaylistsDao`.
+- **Descargas resilientes**: audio 404 ⇒ `unavailable` (no `failed`); reintentos
+  con backoff acotado (0.5/1/2 s, máx. 3) para fallos transitorios en audio/karaoke
+  (helper `_descargarStream` compartido). Cola: `reintentarFallidas()`,
+  `encolarTodo()` (espejo completo) y `mantenerPlaylistsGuardadas()`.
+- **Selección inteligente** (Biblioteca › Pistas): "Todas" marca solo las
+  **incompletas**; las completas salen con check deshabilitado. Predicado puro
+  compartido `pistaCompletaCore` + `pistasCompletasProvider` (done|unavailable).
+- **Contadores reales** en Descargas (no del lote): `watchResumen` (audio/letra/
+  karaoke por estado) + `watchConteo` (portadas/artistas) + `watchTotalPistas` →
+  "N de M", desglose por categoría, espacio en disco por carpeta, lista de
+  playlists guardadas con progreso, y acciones Reintentar / **Descargar todo**.
+- **Todo en vivo (auto-sync)**: `SyncController` sincroniza al conectar/arrancar
+  y `NbSoundApp` al volver a primer plano (resume) + periódico (5 min en
+  foreground). Cada sync con éxito encadena el **mantenimiento offline**
+  (reintentos + playlists guardadas + "descargar todo" si está activo). La
+  reactividad de Drift refleja cambios sin reabrir.
+- **Conexión por IP (sin cámara)** — VERIFICADA contra el PC real: en Sincronizar
+  → "Sin cámara: conectar por IP", se escribe la dirección (`host` o `host:puerto`)
+  y el código del QR. `PairingRepository.pairPorIp` descubre el puerto (escaneo
+  8731–8799 vía `/ping`), **aprende y fija la huella TLS por TOFU**, y llama a
+  `/pair`. Validado: emparejó por IP descubriendo el puerto y con la huella
+  correcta (`395f3acd…`); código inválido ⇒ 401. (El PC solo muestra la IP, no el
+  token en texto: el código sigue saliendo del QR — no se tocó el escritorio.)
+
 ## No hecho / pendiente
 
 - **iOS**: no compilado (requiere macOS). Solo Android verificado.

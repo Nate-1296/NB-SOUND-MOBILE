@@ -8,7 +8,14 @@ part 'catalog_dao.g.dart';
 /// Acceso de solo lectura (para la app) a la réplica de catálogo, más los
 /// upserts usados por el sync y el seed de desarrollo.
 @DriftAccessor(
-  tables: <Type>[Artistas, Albums, Pistas, Playlists, PlaylistPistas],
+  tables: <Type>[
+    Artistas,
+    Albums,
+    Pistas,
+    Playlists,
+    PlaylistPistas,
+    PlaylistsGuardadas,
+  ],
 )
 class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   CatalogDao(super.db);
@@ -121,6 +128,14 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
     return row.read(count) ?? 0;
   }
 
+  /// Total de pistas del catálogo (reactivo), para el contador "N de M".
+  Stream<int> watchTotalPistas() {
+    final count = pistas.id.count();
+    final query = selectOnly(pistas)
+      ..addColumns(<Expression<Object>>[count]);
+    return query.watchSingle().map((row) => row.read(count) ?? 0);
+  }
+
   // ── Reemplazo de pertenencia de playlist (al upsertar desde el manifest) ──
   Future<void> replacePlaylistPistas(
     int playlistId,
@@ -148,6 +163,9 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
 
   Future<void> deletePlaylist(int id) async {
     await (delete(playlistPistas)..where((t) => t.playlistId.equals(id))).go();
+    // Si el PC borra la playlist, deja de estar "guardada" en el móvil.
+    await (delete(playlistsGuardadas)..where((t) => t.playlistId.equals(id)))
+        .go();
     await (delete(playlists)..where((t) => t.id.equals(id))).go();
   }
 }

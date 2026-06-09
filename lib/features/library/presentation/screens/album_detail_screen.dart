@@ -5,11 +5,11 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
-import '../../../../shared/util/media_source.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
+import '../../../offline/application/image_resolver.dart';
 import '../../../offline/data/download_repository.dart';
 import '../../../player/application/player_controller.dart';
 import '../../../sync/application/remote_media_provider.dart';
@@ -36,84 +36,93 @@ class AlbumDetailScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 28),
-          children: <Widget>[
-            SubHeader(title: album?.titulo ?? 'Álbum'),
-            Center(
-              child: Cover(
-                image: coverImage(album?.coverPath, ref.watch(remoteMediaProvider)),
-                size: 220,
-                radius: 18,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22),
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverToBoxAdapter(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    album?.titulo ?? '',
-                    style: TextStyle(
-                      fontFamily: NbFonts.display,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: c.text,
+                  SubHeader(title: album?.titulo ?? 'Álbum'),
+                  Center(
+                    child: Cover(
+                      image: ref.watch(coverResolverProvider).imageFor(
+                            album?.coverPath,
+                            cacheWidth: coverCachePx(context, 220),
+                          ),
+                      size: 220,
+                      radius: 18,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    <String>[
-                      if (album?.anio != null) '${album!.anio}',
-                      '${pistas.length} pistas',
-                      formatLongDuration(total),
-                    ].join('  ·  '),
-                    style: TextStyle(
-                      fontFamily: NbFonts.ui,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: c.text2,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: <Widget>[
-                      _PlayButton(
-                        onTap: pistas.isEmpty
-                            ? null
-                            : () => ref
-                                .read(playerControllerProvider.notifier)
-                                .reproducir(pistas, 0),
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        tooltip: 'Reproducir aleatorio',
-                        onPressed: pistas.isEmpty
-                            ? null
-                            : () {
-                                final ctrl = ref
-                                    .read(playerControllerProvider.notifier);
-                                ctrl.reproducir(pistas, 0);
-                                if (!shuffle) {
-                                  ctrl.alternarAleatorio();
-                                }
-                              },
-                        icon: Icon(
-                          AppIcons.shuffle,
-                          color: shuffle ? c.accent : c.text2,
+                  const SizedBox(height: 18),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          album?.titulo ?? '',
+                          style: TextStyle(
+                            fontFamily: NbFonts.display,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: c.text,
+                          ),
                         ),
-                      ),
-                      _AlbumDownloadButton(albumId: albumId, pistas: pistas),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          <String>[
+                            if (album?.anio != null) '${album!.anio}',
+                            '${pistas.length} pistas',
+                            formatLongDuration(total),
+                          ].join('  ·  '),
+                          style: TextStyle(
+                            fontFamily: NbFonts.ui,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: c.text2,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: <Widget>[
+                            _PlayButton(
+                              onTap: pistas.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playerControllerProvider.notifier)
+                                      .reproducir(pistas, 0),
+                            ),
+                            const SizedBox(width: 12),
+                            IconButton(
+                              tooltip: 'Reproducir aleatorio',
+                              onPressed: pistas.isEmpty
+                                  ? null
+                                  : () {
+                                      final ctrl = ref.read(
+                                          playerControllerProvider.notifier);
+                                      ctrl.reproducir(pistas, 0);
+                                      if (!shuffle) {
+                                        ctrl.alternarAleatorio();
+                                      }
+                                    },
+                              icon: Icon(
+                                AppIcons.shuffle,
+                                color: shuffle ? c.accent : c.text2,
+                              ),
+                            ),
+                            _AlbumDownloadButton(
+                                albumId: albumId, pistas: pistas),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: PistaList(
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+              sliver: PistaSliverList(
                 pistas: pistas,
                 numbered: true,
                 showCover: false,

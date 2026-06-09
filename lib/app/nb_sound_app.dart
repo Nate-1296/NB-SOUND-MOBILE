@@ -1,19 +1,71 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/pinned_http_overrides.dart';
 import '../core/router/app_router.dart';
 import '../features/sync/application/remote_media_provider.dart';
+import '../features/sync/application/sync_controller.dart';
 import '../shared/theme/nb_theme.dart';
 import '../shared/theme/theme_controller.dart';
 import '../shared/util/media_source.dart';
 
-/// Widget raíz: aplica el tema activo y monta el router declarativo.
-class NbSoundApp extends ConsumerWidget {
+/// Widget raíz: aplica el tema activo, monta el router declarativo y orquesta el
+/// **auto-sync** para que todo esté en vivo sin intervención: sincroniza al
+/// volver a primer plano (resume) y de forma periódica mientras la app está
+/// abierta. El sync al conectar/arrancar lo dispara [SyncController]; cada sync
+/// con éxito encadena el mantenimiento offline.
+class NbSoundApp extends ConsumerStatefulWidget {
   const NbSoundApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NbSoundApp> createState() => _NbSoundAppState();
+}
+
+class _NbSoundAppState extends ConsumerState<NbSoundApp> {
+  /// Cada cuánto re-sincronizar mientras la app está en primer plano.
+  static const Duration _intervaloAutoSync = Duration(minutes: 5);
+
+  AppLifecycleListener? _lifecycle;
+  Timer? _timer;
+  bool _enPrimerPlano = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (AppLifecycleState estado) {
+        final bool resumed = estado == AppLifecycleState.resumed;
+        // Al volver a primer plano: sincroniza para reflejar cambios del PC.
+        if (resumed && !_enPrimerPlano) {
+          _sincronizar();
+        }
+        _enPrimerPlano = resumed;
+      },
+    );
+    _timer = Timer.periodic(_intervaloAutoSync, (_) {
+      if (_enPrimerPlano) {
+        _sincronizar();
+      }
+    });
+  }
+
+  /// Best-effort: `syncNow` no hace nada si no hay PC emparejado o si ya hay una
+  /// sincronización en curso.
+  void _sincronizar() {
+    ref.read(syncControllerProvider.notifier).syncNow();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _lifecycle?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final NbThemeId themeId = ref.watch(themeControllerProvider);
     final router = ref.watch(appRouterProvider);
 

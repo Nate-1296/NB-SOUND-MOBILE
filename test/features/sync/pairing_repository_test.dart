@@ -136,4 +136,98 @@ void main() {
     expect(pong.ok, isTrue);
     expect(pong.versionProtocolo, 1);
   });
+
+  group('pairPorIp (conexión manual sin cámara)', () {
+    final _FakeAdapter pairOk = _FakeAdapter(
+      statusCode: 200,
+      body: <String, dynamic>{
+        'ok': true,
+        'device_token': 'tok-ip',
+        'dispositivo_id': 9,
+        'nombre': 'PC',
+      },
+    );
+
+    test('parsea host:puerto, usa la huella aprendida y empareja', () async {
+      String? hostVisto;
+      int? puertoVisto;
+      final _FakeStore store = _FakeStore();
+      final PairingRepository repo = PairingRepository(
+        store,
+        dioFactory: _factory(pairOk),
+        discovery: (String host, int? puerto) async {
+          hostVisto = host;
+          puertoVisto = puerto;
+          return const DiscoveredEndpoint(
+            host: '192.168.1.40',
+            puerto: 8731,
+            fingerprint: 'fp-aprendida',
+            tls: true,
+          );
+        },
+      );
+
+      final PairedPc pc = await repo.pairPorIp(
+        direccion: '192.168.1.40:8731',
+        codigo: 'efimero',
+        deviceName: 'x',
+        platform: 'android',
+      );
+
+      expect(hostVisto, '192.168.1.40');
+      expect(puertoVisto, 8731);
+      expect(pc.deviceToken, 'tok-ip');
+      expect(pc.fingerprint, 'fp-aprendida');
+      expect(store.saved?.deviceToken, 'tok-ip');
+    });
+
+    test('sin puerto: lo deja descubrir (puerto null al descubridor)', () async {
+      int? puertoVisto = -1;
+      final PairingRepository repo = PairingRepository(
+        _FakeStore(),
+        dioFactory: _factory(pairOk),
+        discovery: (String host, int? puerto) async {
+          puertoVisto = puerto;
+          return DiscoveredEndpoint(host: host, puerto: 8733, fingerprint: 'fp');
+        },
+      );
+
+      await repo.pairPorIp(
+        direccion: '10.0.0.5',
+        codigo: 'c',
+        deviceName: 'x',
+        platform: 'android',
+      );
+      expect(puertoVisto, isNull);
+    });
+
+    test('no se encuentra el PC ⇒ PairingException(pc_no_encontrado)', () async {
+      final PairingRepository repo = PairingRepository(
+        _FakeStore(),
+        dioFactory: _factory(pairOk),
+        discovery: (String host, int? puerto) async => null,
+      );
+      expect(
+        () => repo.pairPorIp(
+            direccion: '1.2.3.4', codigo: 'c', deviceName: 'x', platform: 'android'),
+        throwsA(isA<PairingException>().having(
+            (PairingException e) => e.code, 'code', 'pc_no_encontrado')),
+      );
+    });
+
+    test('dirección vacía ⇒ PairingException(direccion_invalida)', () async {
+      final PairingRepository repo = PairingRepository(
+        _FakeStore(),
+        dioFactory: _factory(pairOk),
+        discovery: (String host, int? puerto) async =>
+            DiscoveredEndpoint(host: host, puerto: 8731),
+      );
+      expect(
+        () => repo.pairPorIp(
+            direccion: '   ', codigo: 'c', deviceName: 'x', platform: 'android'),
+        throwsA(isA<PairingException>().having(
+            (PairingException e) => e.code, 'code', 'direccion_invalida')),
+      );
+    });
+  });
 }

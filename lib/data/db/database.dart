@@ -5,9 +5,11 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'daos/assets_dao.dart';
 import 'daos/catalog_dao.dart';
 import 'daos/downloads_dao.dart';
 import 'daos/favorites_dao.dart';
+import 'daos/followed_playlists_dao.dart';
 import 'daos/history_dao.dart';
 import 'daos/local_playlists_dao.dart';
 import 'daos/sync_state_dao.dart';
@@ -26,9 +28,11 @@ part 'database.g.dart';
     PlaylistPistas,
     PlaylistsLocales,
     PlaylistLocalPistas,
+    PlaylistsGuardadas,
     HistorialLocal,
     FavoritosLocal,
     DescargasAudio,
+    AssetsDescargados,
     SyncEstado,
     PcEmparejado,
   ],
@@ -37,8 +41,10 @@ part 'database.g.dart';
     HistoryDao,
     FavoritesDao,
     DownloadsDao,
+    AssetsDao,
     SyncStateDao,
     LocalPlaylistsDao,
+    FollowedPlaylistsDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -48,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -58,6 +64,18 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.createTable(playlistsLocales);
             await m.createTable(playlistLocalPistas);
+          }
+          // v3: descarga offline completa (letra + karaoke por pista + imágenes).
+          if (from < 3) {
+            await m.addColumn(descargasAudio, descargasAudio.lyricsEstado);
+            await m.addColumn(descargasAudio, descargasAudio.stemsEstado);
+            await m.addColumn(descargasAudio, descargasAudio.stemsBytes);
+            await m.addColumn(descargasAudio, descargasAudio.stemsTotalBytes);
+            await m.createTable(assetsDescargados);
+          }
+          // v4: playlists del PC guardadas/seguidas (estado propio del móvil).
+          if (from < 4) {
+            await m.createTable(playlistsGuardadas);
           }
         },
       );

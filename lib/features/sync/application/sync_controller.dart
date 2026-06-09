@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +9,8 @@ import 'package:nsd/nsd.dart' show Service;
 import '../../../core/di/providers.dart';
 import '../../../core/network/nb_api_client.dart';
 import '../../../core/security/secure_store.dart';
+import '../../../data/db/daos/sync_state_dao.dart';
+import '../../offline/application/download_providers.dart';
 import '../data/discovery_service.dart';
 import '../data/pairing_repository.dart';
 import '../data/qr_payload.dart';
@@ -83,6 +88,13 @@ class SyncController extends Notifier<SyncState> {
     try {
       final SyncResult result = await _sync.sync(pc);
       state = SyncState(phase: SyncPhase.connected, pc: pc, lastSync: result);
+      await ref.read(syncStateDaoProvider).setValor(
+            SyncStateDao.kUltimaSync,
+            DateTime.now().toUtc().toIso8601String(),
+          );
+      // Mantenimiento offline en vivo: reintenta fallidas, mantiene las playlists
+      // guardadas y, si está activado, completa el espejo de toda la biblioteca.
+      unawaited(_mantenerOffline());
     } on DioException catch (e) {
       state = SyncState(
         phase: SyncPhase.connected,
@@ -100,10 +112,31 @@ class SyncController extends Notifier<SyncState> {
     }
   }
 
+  /// Encola el mantenimiento offline tras una sync con éxito. Best-effort: nunca
+  /// rompe la sync. Ver [DownloadQueueController].
+  Future<void> _mantenerOffline() async {
+    try {
+      final DownloadQueueController q =
+          ref.read(downloadQueueProvider.notifier);
+      await q.reintentarFallidas();
+      await q.mantenerPlaylistsGuardadas();
+      final String? todo =
+          await ref.read(syncStateDaoProvider).getValor(SyncStateDao.kDescargarTodo);
+      if (todo == '1') {
+        await q.encolarTodo();
+      }
+    } catch (_) {
+      // El mantenimiento es oportunista: cualquier fallo se reintenta en la
+      // próxima sync.
+    }
+  }
+
   Future<void> _loadExisting() async {
     final PairedPc? pc = await _store.readPairing();
     if (pc != null && state.phase == SyncPhase.intro) {
       state = SyncState(phase: SyncPhase.connected, pc: pc);
+      // Auto-sync al recuperar un emparejamiento previo (arranque de la app).
+      unawaited(syncNow());
     }
   }
 
@@ -128,10 +161,41 @@ class SyncController extends Notifier<SyncState> {
     try {
       final PairedPc pc = await _repo.pair(
         qr,
-        deviceName: _deviceName(),
+        deviceName: await _deviceName(),
         platform: _platform(),
       );
       state = SyncState(phase: SyncPhase.connected, pc: pc);
+      unawaited(syncNow());
+    } on PairingException catch (e) {
+      state = SyncState(phase: SyncPhase.error, errorCode: e.code);
+    }
+  }
+
+  /// Emparejamiento manual por **IP** (sin cámara): se introduce la dirección del
+  /// PC (host o `host:puerto`) y el código de un solo uso. La app descubre el
+  /// puerto si no se indicó (rango 8731–8799), aprende y fija la huella TLS por
+  /// TOFU, y llama a `/pair` con el código. Útil en dispositivos sin cámara o con
+  /// la cámara dañada.
+  Future<void> conectarPorIp(String direccion, String codigo) async {
+    if (state.phase == SyncPhase.connecting) {
+      return;
+    }
+    final String dir = direccion.trim();
+    final String code = codigo.trim();
+    if (dir.isEmpty || code.isEmpty) {
+      state = const SyncState(phase: SyncPhase.error, errorCode: 'datos_incompletos');
+      return;
+    }
+    state = const SyncState(phase: SyncPhase.connecting);
+    try {
+      final PairedPc pc = await _repo.pairPorIp(
+        direccion: dir,
+        codigo: code,
+        deviceName: await _deviceName(),
+        platform: _platform(),
+      );
+      state = SyncState(phase: SyncPhase.connected, pc: pc);
+      unawaited(syncNow());
     } on PairingException catch (e) {
       state = SyncState(phase: SyncPhase.error, errorCode: e.code);
     }
@@ -159,6 +223,7 @@ class SyncController extends Notifier<SyncState> {
       final PairedPc? updated = await _store.readPairing();
       if (updated != null) {
         state = SyncState(phase: SyncPhase.connected, pc: updated);
+        unawaited(syncNow());
       }
     }
   }
@@ -177,7 +242,32 @@ class SyncController extends Notifier<SyncState> {
     }
   }
 
-  String _deviceName() {
+  /// Nombre legible del dispositivo para que el PC lo muestre en su lista de
+  /// emparejados (en vez del genérico "Android · NB Sound"). Best-effort: si el
+  /// plugin no responde (p. ej. en tests sin canal de plataforma), cae al
+  /// nombre genérico por plataforma.
+  ///
+  /// - Android: "Fabricante Modelo" (p. ej. "Google Pixel 7", "Samsung SM-G991B").
+  /// - iOS: el nombre que el usuario puso al equipo (UIDevice.name).
+  Future<String> _deviceName() async {
+    try {
+      final DeviceInfoPlugin info = DeviceInfoPlugin();
+      switch (_platform()) {
+        case 'android':
+          final AndroidDeviceInfo a = await info.androidInfo;
+          return _nombreLegible(a.manufacturer, a.model);
+        case 'ios':
+          final IosDeviceInfo i = await info.iosInfo;
+          final String n = i.name.trim();
+          return n.isNotEmpty ? n : _nombreLegible('Apple', i.model);
+      }
+    } catch (_) {
+      // Plugin no disponible / sin canal de plataforma: usa el genérico.
+    }
+    return _deviceNameGenerico();
+  }
+
+  String _deviceNameGenerico() {
     switch (_platform()) {
       case 'android':
         return 'Android · NB Sound';
@@ -187,6 +277,23 @@ class SyncController extends Notifier<SyncState> {
         return 'NB Sound móvil';
     }
   }
+
+  /// Combina fabricante y modelo evitando repeticiones ("samsung SM-G991B" ->
+  /// "Samsung SM-G991B"; "Google Pixel 7" cuando el modelo ya no trae marca).
+  String _nombreLegible(String fabricante, String modelo) {
+    final String f = fabricante.trim();
+    final String m = modelo.trim();
+    if (m.isEmpty) {
+      return f.isEmpty ? 'NB Sound móvil' : _capitalizar(f);
+    }
+    if (f.isEmpty || m.toLowerCase().startsWith(f.toLowerCase())) {
+      return m;
+    }
+    return '${_capitalizar(f)} $m';
+  }
+
+  String _capitalizar(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 }
 
 final NotifierProvider<SyncController, SyncState> syncControllerProvider =

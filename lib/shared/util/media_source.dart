@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/widgets.dart';
 
 /// Datos del PC emparejado necesarios para resolver media remota (portadas,
@@ -42,31 +40,4 @@ class RemoteMedia {
 
   @override
   int get hashCode => Object.hash(baseUrl, token, fingerprint);
-}
-
-/// Resuelve un `*_path` del catálogo a un [ImageProvider]:
-/// - `assets/...` → [AssetImage] (portadas bundleadas / seed).
-/// - `http...`    → [NetworkImage].
-/// - `/api/...`   → portada remota del PC: [NetworkImage] absoluto con auth, si
-///   hay un PC emparejado ([remote] != null); si no, null (respaldo en gris).
-/// - otro         → [FileImage] (descarga offline / ruta local).
-/// Devuelve null si no hay imagen mostrable (el llamador pinta el respaldo).
-ImageProvider? coverImage(String? path, [RemoteMedia? remote]) {
-  if (path == null || path.isEmpty) {
-    return null;
-  }
-  if (path.startsWith('assets/')) {
-    return AssetImage(path);
-  }
-  if (path.startsWith('http')) {
-    return NetworkImage(path);
-  }
-  if (path.startsWith('/api/')) {
-    // URL relativa del PC: solo resoluble con un PC emparejado (base + auth).
-    if (remote == null) {
-      return null;
-    }
-    return NetworkImage(remote.urlFor(path), headers: remote.authHeaders);
-  }
-  return FileImage(File(path));
 }

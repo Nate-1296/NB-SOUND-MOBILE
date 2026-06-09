@@ -1,20 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 
 import '../../../core/di/providers.dart';
 import '../../../core/network/nb_api_client.dart';
 import '../../../core/security/secure_store.dart';
+import '../../offline/application/download_providers.dart';
 import '../../sync/application/sync_controller.dart';
 import '../data/lyrics_models.dart';
 import '../data/lyrics_repository.dart';
 
-/// Directorio de letras cacheadas (`<docs>/lyrics`), hermano del de audio.
-final Provider<Directory> lyricsDirProvider = Provider<Directory>((Ref ref) {
-  final Directory audioDir = ref.watch(appAudioDirProvider);
-  return Directory(p.join(audioDir.parent.path, 'lyrics'));
-});
+/// Directorio de letras cacheadas (`<docs>/lyrics`). Misma convención que usa el
+/// repositorio de descargas, vía [offlineStoreProvider], para que la letra que se
+/// descarga sea exactamente la que lee [LyricsRepository] offline.
+final Provider<Directory> lyricsDirProvider = Provider<Directory>(
+  (Ref ref) => ref.watch(offlineStoreProvider).lyricsDir,
+);
 
 final Provider<LyricsRepository> lyricsRepositoryProvider =
     Provider<LyricsRepository>((Ref ref) {

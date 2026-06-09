@@ -5,10 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
-import '../../../../shared/util/media_source.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
-import '../../../sync/application/remote_media_provider.dart';
+import '../../../offline/application/image_resolver.dart';
 import '../../application/library_providers.dart';
 
 /// Tarjeta de álbum (portada + título + año). La portada llena el ancho
@@ -30,7 +29,10 @@ class AlbumCard extends ConsumerWidget {
           AspectRatio(
             aspectRatio: 1,
             child: Cover(
-              image: coverImage(album.coverPath, ref.watch(remoteMediaProvider)),
+              image: ref.watch(coverResolverProvider).imageFor(
+                    album.coverPath,
+                    cacheWidth: coverCachePx(context, 220),
+                  ),
               size: double.infinity,
               radius: 14,
             ),
@@ -72,8 +74,10 @@ class ArtistTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final ImageProvider? img =
-        coverImage(artista.imagenPath, ref.watch(remoteMediaProvider));
+    final ImageProvider? img = ref.watch(coverResolverProvider).imageFor(
+          artista.imagenPath,
+          cacheWidth: coverCachePx(context, 52),
+        );
     return ListTile(
       onTap: () => context.push('/artist/${artista.id}'),
       leading: Container(
@@ -180,10 +184,13 @@ class PlaylistCard extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistProvider(playlist.id)).value ??
             const <Pista>[];
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
+    final int px = coverCachePx(context, 110);
     final List<ImageProvider> covers = <ImageProvider>[
       for (final Pista p in pistas)
-        if (coverImage(p.coverPath, remote) case final ImageProvider img) img,
+        if (resolver.imageFor(p.coverPath, cacheWidth: px)
+            case final ImageProvider img)
+          img,
     ];
     return _PlaylistCardBase(
       nombre: playlist.nombre,
@@ -205,10 +212,13 @@ class LocalPlaylistCard extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistLocalProvider(playlist.id)).value ??
             const <Pista>[];
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
+    final int px = coverCachePx(context, 110);
     final List<ImageProvider> covers = <ImageProvider>[
       for (final Pista p in pistas)
-        if (coverImage(p.coverPath, remote) case final ImageProvider img) img,
+        if (resolver.imageFor(p.coverPath, cacheWidth: px)
+            case final ImageProvider img)
+          img,
     ];
     return _PlaylistCardBase(
       nombre: playlist.nombre,

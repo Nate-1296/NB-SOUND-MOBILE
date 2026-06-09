@@ -93,6 +93,38 @@ flutter run -d <emulador-o-dispositivo>  # Android es el target verificado
 > `*.g.dart`/`*.freezed.dart` están en `.gitignore`. iOS requiere macOS para
 > compilar.
 
+## Empaquetar (refrescar `build/` y `dist/`)
+
+Reconstruye el APK de release desde cero y deja `dist/` al día (limpia los
+artefactos anteriores). La versión sale de `pubspec.yaml`, así los nombres no
+quedan obsoletos al subir `version:`.
+
+```bash
+# 1) Limpiar artefactos previos
+flutter clean
+rm -f dist/*.apk
+
+# 2) Dependencias + codegen
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+
+# 3) Compilar release: universal + por ABI
+flutter build apk --release                  # → app-release.apk (universal)
+flutter build apk --release --split-per-abi  # → app-<abi>-release.apk
+
+# 4) Empaquetar en dist/ con el nombre de release
+mkdir -p dist
+VER=$(sed -nE 's/^version: *([0-9.]+).*/\1/p' pubspec.yaml)
+APK=build/app/outputs/flutter-apk
+cp "$APK/app-release.apk"            "dist/NB-Sound-$VER-universal.apk"
+cp "$APK/app-arm64-v8a-release.apk"   "dist/NB-Sound-$VER-arm64-v8a.apk"
+cp "$APK/app-armeabi-v7a-release.apk" "dist/NB-Sound-$VER-armeabi-v7a.apk"
+```
+
+> `build/` y `dist/` son artefactos (no se versionan). El release de tienda usa
+> App Bundle: `flutter build appbundle --release`. Firma, política de assets e
+> instalación en [`docs/release.md`](docs/release.md).
+
 ## Relación con el escritorio
 
 | Tema | Dónde se especifica |

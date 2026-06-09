@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_sound_mobile/core/security/secure_store.dart';
 import 'package:nb_sound_mobile/data/db/database.dart';
 import 'package:nb_sound_mobile/features/offline/data/download_repository.dart';
+import 'package:nb_sound_mobile/features/offline/data/offline_store.dart';
 
 /// Sirve [content] como audio, soportando Range (206) y enviando el hash en
 /// `X-NB-Sound-Hash`. [hashOverride] permite simular un hash incorrecto.
@@ -85,7 +86,7 @@ void main() {
 
   DownloadRepository repoWith(HttpClientAdapter adapter) => DownloadRepository(
         db: db,
-        audioDir: dir,
+        store: OfflineStore(dir),
         dioFor: (PairedPc pc) {
           final Dio d = Dio(BaseOptions(baseUrl: pc.baseUrl));
           d.httpClientAdapter = adapter;
@@ -109,7 +110,9 @@ void main() {
 
   test('reanuda por Range desde un archivo parcial', () async {
     // Simula una descarga cortada: .part con la primera mitad.
-    final File part = File('${dir.path}/1.audio.part');
+    final OfflineStore store = OfflineStore(dir);
+    await store.audioDir.create(recursive: true);
+    final File part = File('${store.audioFile(1).path}.part');
     await part.writeAsBytes(content.sublist(0, 2000));
 
     final DownloadRepository repo = repoWith(_AudioAdapter(content));

@@ -17,6 +17,18 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
   /// Perfil del PC (JSON: nombre + estadísticas), guardado en cada sync.
   static const String kPerfil = 'perfil';
 
+  /// Preferencia "Descargar todo": si es `'1'`, tras cada sync se encola el
+  /// catálogo completo para mantener un espejo offline.
+  static const String kDescargarTodo = 'descargar_todo';
+
+  /// Marca de tiempo (ISO-8601) de la última sincronización con éxito.
+  static const String kUltimaSync = 'ultima_sync';
+
+  Stream<String?> watchValor(String clave) =>
+      (select(syncEstado)..where((t) => t.clave.equals(clave)))
+          .watchSingleOrNull()
+          .map((SyncEstadoEntry? row) => row?.valor);
+
   Future<String?> getValor(String clave) async {
     final SyncEstadoEntry? row =
         await (select(syncEstado)..where((t) => t.clave.equals(clave)))

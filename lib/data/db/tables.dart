@@ -122,6 +122,20 @@ class PlaylistLocalPistas extends Table {
       <Column<Object>>{playlistId, pistaId};
 }
 
+/// Playlists del PC que el usuario decidió **guardar/seguir** en el móvil. Es
+/// estado propio del teléfono (no se sincroniza al PC): vive aparte del catálogo
+/// para no chocar con el sync. Una playlist guardada aparece en "Tus playlists",
+/// se mantiene al día por el sync del catálogo y su contenido se descarga para
+/// tenerla viva offline. `playlistId` referencia `playlists.id` (réplica del PC).
+@DataClassName('PlaylistGuardada')
+class PlaylistsGuardadas extends Table {
+  IntColumn get playlistId => integer()();
+  DateTimeColumn get guardadaEn => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => <Column<Object>>{playlistId};
+}
+
 /// Historial de reproducción (fuente de verdad local; append + subida).
 @DataClassName('HistorialEntry')
 class HistorialLocal extends Table {
@@ -145,18 +159,55 @@ class FavoritosLocal extends Table {
   Set<Column<Object>> get primaryKey => <Column<Object>>{pistaId};
 }
 
-/// Estado de descarga de audio por pista (pending|downloading|done|failed).
+/// Estado de descarga **completa** de una pista (audio + extras offline). El
+/// `estado`/`bytes`/`hashOk` refieren al audio (recurso principal); la letra y el
+/// instrumental de karaoke llevan su propio estado por recurso. La portada y la
+/// foto del artista se trackean aparte en [AssetsDescargados] (se comparten entre
+/// pistas del mismo álbum/artista).
+///
+/// Estados por recurso: `none` (no intentado) · `pending`/`downloading` (en curso)
+/// · `done` (descargado) · `unavailable` (el PC respondió 404: no existe, NO se
+/// reintenta) · `failed` (error transitorio: se reintenta).
 @DataClassName('DescargaAudio')
 class DescargasAudio extends Table {
   IntColumn get pistaId => integer()();
+
+  // Audio (recurso principal).
   TextColumn get estado => text().withDefault(const Constant('pending'))();
   IntColumn get bytes => integer().withDefault(const Constant(0))();
   IntColumn get totalBytes => integer().nullable()();
   BoolColumn get hashOk => boolean().nullable()();
+
+  // Letra (`lyrics/{id}.json`). Sin bytes: es un JSON pequeño de una sola pasada.
+  TextColumn get lyricsEstado => text().withDefault(const Constant('none'))();
+
+  // Instrumental de karaoke (`stems/{id}.audio`), reanudable como el audio.
+  TextColumn get stemsEstado => text().withDefault(const Constant('none'))();
+  IntColumn get stemsBytes => integer().withDefault(const Constant(0))();
+  IntColumn get stemsTotalBytes => integer().nullable()();
+
   DateTimeColumn get actualizadoEn => dateTime()();
 
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{pistaId};
+}
+
+/// Imágenes descargadas para uso offline, deduplicadas por entidad: una portada
+/// de álbum (`cover`) la comparten todas sus pistas, y una foto de artista
+/// (`artist`) todas las suyas. El archivo vive en disco (`covers/{id}.img` /
+/// `artists/{id}.img`); aquí solo se guarda el estado para resolver UI y descargas.
+@DataClassName('AssetDescargado')
+class AssetsDescargados extends Table {
+  /// `cover` (refId = albumId) | `artist` (refId = artistaId).
+  TextColumn get tipo => text()();
+  IntColumn get refId => integer()();
+
+  /// `done` | `unavailable` (404) | `failed` (error transitorio).
+  TextColumn get estado => text()();
+  DateTimeColumn get actualizadoEn => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => <Column<Object>>{tipo, refId};
 }
 
 /// Pares clave/valor de estado de sync (p.ej. ultima_sync_version).

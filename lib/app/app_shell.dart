@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/utils/duration_format.dart';
+import '../features/offline/application/image_resolver.dart';
 import '../features/player/application/playback.dart';
-import '../features/sync/application/remote_media_provider.dart';
 import '../shared/theme/nb_colors.dart';
-import '../shared/util/media_source.dart';
 import '../shared/widgets/bottom_nav.dart';
 import '../shared/widgets/mini_player.dart';
 
@@ -43,7 +42,10 @@ class AppShell extends ConsumerWidget {
                 title: np.title,
                 subtitle:
                     np.isRemote ? '${np.artist} · en tu PC' : np.artist,
-                cover: coverImage(np.coverPath, ref.watch(remoteMediaProvider)),
+                cover: ref.watch(coverResolverProvider).imageFor(
+                      np.coverPath,
+                      cacheWidth: coverCachePx(context, 44),
+                    ),
                 playing: np.playing,
                 progress: np.progress,
                 positionLabel: formatClock(np.position.inSeconds),

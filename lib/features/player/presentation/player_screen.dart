@@ -8,7 +8,6 @@ import '../../../core/utils/duration_format.dart';
 import '../../../data/db/database.dart';
 import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
-import '../../../shared/util/media_source.dart';
 import '../../../shared/widgets/app_icons.dart';
 import '../../../shared/widgets/chip_pill.dart';
 import '../../../shared/widgets/cover.dart';
@@ -17,6 +16,7 @@ import '../../library/application/library_providers.dart';
 import '../../lyrics/application/lyrics_providers.dart';
 import '../../lyrics/data/lyrics_models.dart';
 import '../../offline/application/download_providers.dart';
+import '../../offline/application/image_resolver.dart';
 import '../../offline/data/download_repository.dart';
 import '../../remote_control/presentation/destination_sheet.dart';
 import '../../remote_control/presentation/remote_player_view.dart';
@@ -62,8 +62,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    final ImageProvider? cover =
-        coverImage(pista.coverPath, ref.watch(remoteMediaProvider));
+    final ImageProvider? cover = ref.watch(coverResolverProvider).imageFor(
+          pista.coverPath,
+          cacheWidth: coverCachePx(context, MediaQuery.sizeOf(context).width),
+        );
     final Set<int> favoritas =
         ref.watch(favoritasIdsProvider).value ?? const <int>{};
     final bool esFav = favoritas.contains(pista.id);
@@ -420,13 +422,16 @@ class _LetraState extends ConsumerState<_Letra> {
                   'Conéctate a tu PC para ver la letra de esta pista.',
                 );
               }
-              if (lyrics.isEmpty) {
-                return _message(c, 'Esta pista no tiene letra.');
-              }
               if (lyrics.hasSynced) {
                 return _synced(c, lyrics, pos);
               }
-              return _plain(c, lyrics.plain);
+              // Solo se muestra la letra sincronizada (con auto-scroll). La letra
+              // plana se descarga y conserva en disco, pero no se muestra: igual
+              // que el PC, sin marcas de tiempo no hay experiencia de karaoke.
+              return _message(
+                c,
+                '¡Lo sentimos! No encontramos la letra de esta canción.',
+              );
             },
           ),
         ),
@@ -476,23 +481,6 @@ class _LetraState extends ConsumerState<_Letra> {
       target.clamp(0.0, _scroll.position.maxScrollExtent),
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
-    );
-  }
-
-  Widget _plain(NbColors c, String plain) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-      child: Text(
-        plain,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: NbFonts.ui,
-          fontSize: 15.5,
-          fontWeight: FontWeight.w500,
-          height: 1.7,
-          color: c.text2,
-        ),
-      ),
     );
   }
 
@@ -573,7 +561,8 @@ class _Cola extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
+    final int px = coverCachePx(context, 40);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 12),
       itemCount: player.queue.length,
@@ -585,7 +574,7 @@ class _Cola extends ConsumerWidget {
           onTap: () =>
               ref.read(playerControllerProvider.notifier).irACola(i),
           leading: Cover(
-            image: coverImage(p.coverPath, remote),
+            image: resolver.imageFor(p.coverPath, cacheWidth: px),
             size: 40,
             radius: 8,
             shadow: false,

@@ -5,13 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
-import '../../../../shared/util/media_source.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/section_head.dart';
 import '../../../../shared/widgets/top_bar.dart';
+import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/player_controller.dart';
-import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
@@ -158,7 +157,8 @@ class _RecientesRail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final RemoteMedia? remote = ref.watch(remoteMediaProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
+    final int px = coverCachePx(context, 124);
     return SizedBox(
       height: 168,
       child: ListView.separated(
@@ -176,7 +176,11 @@ class _RecientesRail extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Cover(image: coverImage(p.coverPath, remote), size: 124, radius: 14),
+                  Cover(
+                    image: resolver.imageFor(p.coverPath, cacheWidth: px),
+                    size: 124,
+                    radius: 14,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     p.titulo,

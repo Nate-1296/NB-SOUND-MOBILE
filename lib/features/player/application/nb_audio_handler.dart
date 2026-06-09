@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -43,6 +45,11 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
   /// Id de la pista que debe sonar en modo karaoke (instrumental `/stems`), o
   /// null. Lo fija el [PlayerController] al alternar karaoke antes de recargar.
   int? karaokeId;
+
+  /// Resuelve el archivo local del instrumental de una pista (lo fija el
+  /// [PlayerController] desde `OfflineStore`). Si existe se reproduce el karaoke
+  /// offline; si no, se hace streaming de `/stems`.
+  File Function(int pistaId)? stemFileFor;
 
   Stream<Duration> get positionStream =>
       _player?.positionStream ?? const Stream<Duration>.empty();
@@ -104,13 +111,20 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     // en builds de desarrollo con NB_SEED; la media de ejemplo no se empaqueta).
     final MediaItem tag = _toMediaItem(p);
     final RemoteMedia? r = remote;
-    if (r != null && p.id == karaokeId) {
-      // Karaoke: instrumental por streaming (no se descarga en esta versión).
-      return AudioSource.uri(
-        Uri.parse(r.urlFor('/api/v1/track/${p.id}/stems')),
-        headers: r.authHeaders,
-        tag: tag,
-      );
+    if (p.id == karaokeId) {
+      // Karaoke: instrumental local si está descargado (offline); si no, streaming
+      // de `/stems` con el PC. Si no hay ni local ni PC, cae al audio normal.
+      final File? local = stemFileFor?.call(p.id);
+      if (local != null && local.existsSync()) {
+        return AudioSource.file(local.path, tag: tag);
+      }
+      if (r != null) {
+        return AudioSource.uri(
+          Uri.parse(r.urlFor('/api/v1/track/${p.id}/stems')),
+          headers: r.authHeaders,
+          tag: tag,
+        );
+      }
     }
     final String? path = p.audioPath;
     if (path != null && path.startsWith('assets/')) {

@@ -25,6 +25,45 @@ final StreamProvider<List<Playlist>> playlistsProvider =
   return ref.watch(catalogDaoProvider).watchPlaylists();
 });
 
+/// Ids de las playlists del PC que el usuario guardó/sigue (reactivo).
+final StreamProvider<Set<int>> playlistsGuardadasIdsProvider =
+    StreamProvider<Set<int>>((Ref ref) {
+  return ref.watch(followedPlaylistsDaoProvider).watchGuardadasIds();
+});
+
+/// Playlists del PC **guardadas** (viven en "Tus playlists"). Conserva el orden
+/// de [playlistsProvider] (alfabético).
+final Provider<List<Playlist>> playlistsGuardadasProvider =
+    Provider<List<Playlist>>((Ref ref) {
+  final List<Playlist> todas =
+      ref.watch(playlistsProvider).value ?? const <Playlist>[];
+  final Set<int> guardadas =
+      ref.watch(playlistsGuardadasIdsProvider).value ?? const <int>{};
+  return <Playlist>[
+    for (final Playlist p in todas)
+      if (guardadas.contains(p.id)) p,
+  ];
+});
+
+/// Playlists del PC **no guardadas** (sección "Del PC").
+final Provider<List<Playlist>> playlistsDelPcNoGuardadasProvider =
+    Provider<List<Playlist>>((Ref ref) {
+  final List<Playlist> todas =
+      ref.watch(playlistsProvider).value ?? const <Playlist>[];
+  final Set<int> guardadas =
+      ref.watch(playlistsGuardadasIdsProvider).value ?? const <int>{};
+  return <Playlist>[
+    for (final Playlist p in todas)
+      if (!guardadas.contains(p.id)) p,
+  ];
+});
+
+/// True si la playlist del PC [id] está guardada (reactivo).
+final playlistGuardadaProvider = Provider.family<bool, int>((Ref ref, int id) {
+  return (ref.watch(playlistsGuardadasIdsProvider).value ?? const <int>{})
+      .contains(id);
+});
+
 final StreamProvider<List<Pista>> recientesProvider =
     StreamProvider<List<Pista>>((Ref ref) {
   return ref.watch(historyDaoProvider).watchRecientes();

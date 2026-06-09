@@ -151,8 +151,13 @@ class _PistasListState extends ConsumerState<_PistasList> {
     final NbColors c = context.nb;
     final List<Pista> pistas =
         ref.watch(pistasProvider).value ?? const <Pista>[];
-    final Set<int> descargadas =
-        ref.watch(descargadasProvider).value ?? const <int>{};
+    // Solo se descarga lo que falta: las pistas ya completas (todos sus recursos
+    // resueltos) no son seleccionables; "Todas" marca solo las incompletas.
+    final Set<int> completas = ref.watch(pistasCompletasProvider);
+    final List<Pista> incompletas =
+        <Pista>[for (final Pista p in pistas) if (!completas.contains(p.id)) p];
+    final bool todasMarcadas = incompletas.isNotEmpty &&
+        incompletas.every((Pista p) => _sel.contains(p.id));
 
     return Column(
       children: <Widget>[
@@ -163,19 +168,20 @@ class _PistasListState extends ConsumerState<_PistasList> {
               ? Row(
                   children: <Widget>[
                     TextButton(
-                      onPressed: () => setState(() {
-                        if (_sel.length == pistas.length) {
-                          _sel.clear();
-                        } else {
-                          _sel
-                            ..clear()
-                            ..addAll(pistas.map((Pista p) => p.id));
-                        }
-                      }),
+                      onPressed: incompletas.isEmpty
+                          ? null
+                          : () => setState(() {
+                                if (todasMarcadas) {
+                                  _sel.clear();
+                                } else {
+                                  _sel
+                                    ..clear()
+                                    ..addAll(
+                                        incompletas.map((Pista p) => p.id));
+                                }
+                              }),
                       child: Text(
-                        _sel.length == pistas.length
-                            ? 'Ninguna'
-                            : 'Todas',
+                        todasMarcadas ? 'Ninguna' : 'Todas',
                         style: TextStyle(color: c.accent),
                       ),
                     ),
@@ -220,16 +226,20 @@ class _PistasListState extends ConsumerState<_PistasList> {
                   itemCount: pistas.length,
                   itemBuilder: (BuildContext context, int i) {
                     final Pista p = pistas[i];
-                    final bool ya = descargadas.contains(p.id);
+                    final bool ya = completas.contains(p.id);
                     return CheckboxListTile(
-                      value: _sel.contains(p.id),
-                      onChanged: (bool? v) => setState(() {
-                        if (v ?? false) {
-                          _sel.add(p.id);
-                        } else {
-                          _sel.remove(p.id);
-                        }
-                      }),
+                      // Las completas se muestran marcadas y deshabilitadas: no
+                      // hay nada que descargar de ellas.
+                      value: ya || _sel.contains(p.id),
+                      onChanged: ya
+                          ? null
+                          : (bool? v) => setState(() {
+                                if (v ?? false) {
+                                  _sel.add(p.id);
+                                } else {
+                                  _sel.remove(p.id);
+                                }
+                              }),
                       activeColor: c.accent,
                       controlAffinity: ListTileControlAffinity.leading,
                       title: Text(
@@ -255,9 +265,10 @@ class _PistasListState extends ConsumerState<_PistasList> {
                     );
                   },
                 )
-              : SingleChildScrollView(
+              : PistaListView(
+                  pistas: pistas,
+                  comoColeccion: false,
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-                  child: PistaList(pistas: pistas, comoColeccion: false),
                 ),
         ),
       ],

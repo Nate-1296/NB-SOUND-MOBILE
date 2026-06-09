@@ -28,6 +28,9 @@ dependencies:
   just_audio: ^0.10.5
   audio_service: ^0.18.18
 
+  # --- Imágenes: caché en disco/memoria + redimensionado de portadas remotas ---
+  cached_network_image: ^3.4.1
+
   # --- Red: sync (HTTP) + control remoto (WebSocket) ---
   dio: ^5.9.2
   web_socket_channel: ^3.0.3
@@ -42,6 +45,7 @@ dependencies:
   json_annotation: ^4.12.0
   collection: ^1.18.0
   crypto: ^3.0.3               # validar hash_sha256 del audio descargado
+  device_info_plus: ^13.1.0
 
 dev_dependencies:
   flutter_test:

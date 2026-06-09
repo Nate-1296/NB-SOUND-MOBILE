@@ -115,6 +115,8 @@ class PlayerController extends Notifier<PlayerState> {
     _history = ref.watch(historyDaoProvider);
     _downloads = ref.watch(downloadsDaoProvider);
     _downloadRepo = ref.watch(downloadRepositoryProvider);
+    // Permite al handler resolver el instrumental de karaoke descargado (offline).
+    _handler.stemFileFor = ref.read(offlineStoreProvider).stemFile;
 
     final List<StreamSubscription<Object?>> subs =
         <StreamSubscription<Object?>>[
@@ -160,13 +162,18 @@ class PlayerController extends Notifier<PlayerState> {
     final bool turningOn = !state.karaoke;
     final PairedPc? pc = ref.read(syncControllerProvider).pc;
     if (turningOn) {
-      if (pc == null) {
-        return false;
-      }
-      final bool ok =
-          await ref.read(stemsRepositoryProvider).disponible(pc, pista.id);
-      if (!ok) {
-        return false;
+      // Disponible si el instrumental está descargado (offline) o, en su defecto,
+      // si el PC lo ofrece por streaming.
+      final bool localOk = await _downloads.tieneStems(pista.id);
+      if (!localOk) {
+        if (pc == null) {
+          return false;
+        }
+        final bool ok =
+            await ref.read(stemsRepositoryProvider).disponible(pc, pista.id);
+        if (!ok) {
+          return false;
+        }
       }
     }
     final Duration pos = state.position;
