@@ -9,6 +9,7 @@ import '../../../data/db/database.dart';
 import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
 import '../../../shared/widgets/app_icons.dart';
+import '../../../shared/widgets/auto_fit_text.dart';
 import '../../../shared/widgets/chip_pill.dart';
 import '../../../shared/widgets/cover.dart';
 import '../../karaoke/application/karaoke_providers.dart';
@@ -20,6 +21,7 @@ import '../../offline/application/image_resolver.dart';
 import '../../offline/data/download_repository.dart';
 import '../../remote_control/presentation/destination_sheet.dart';
 import '../../remote_control/presentation/remote_player_view.dart';
+import '../../sync/application/conexion_provider.dart';
 import '../../sync/application/remote_media_provider.dart';
 import '../application/playback.dart';
 import '../application/player_controller.dart';
@@ -37,6 +39,10 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   _View _view = _View.portada;
   double? _seekDrag;
+
+  /// En la vista Letra: oculta cabecera/controles para ver la letra a pantalla
+  /// completa. Se alterna tocando la letra; vuelve a false al cambiar de vista.
+  bool _immersive = false;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +76,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ref.watch(favoritasIdsProvider).value ?? const <int>{};
     final bool esFav = favoritas.contains(pista.id);
 
+    // Letra a pantalla completa: oculta cabecera, pestañas y controles.
+    final bool immersive = _view == _View.letra && _immersive;
+
     return Scaffold(
       backgroundColor: c.bg,
       body: Stack(
@@ -80,36 +89,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Column(
                 children: <Widget>[
-                  _header(c, pista),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        for (final (_View v, String l) tab in const <(
-                          _View,
-                          String
-                        )>[
-                          (_View.portada, 'Portada'),
-                          (_View.letra, 'Letra'),
-                          (_View.cola, 'Cola'),
-                        ]) ...<Widget>[
-                          ChipPill(
-                            label: tab.$2,
-                            active: _view == tab.$1,
-                            onTap: () => setState(() => _view = tab.$1),
-                          ),
-                          const SizedBox(width: 7),
+                  if (!immersive) ...<Widget>[
+                    _header(c, pista),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          for (final (_View v, String l) tab in const <(
+                            _View,
+                            String
+                          )>[
+                            (_View.portada, 'Portada'),
+                            (_View.letra, 'Letra'),
+                            (_View.cola, 'Cola'),
+                          ]) ...<Widget>[
+                            ChipPill(
+                              label: tab.$2,
+                              active: _view == tab.$1,
+                              onTap: () => setState(() {
+                                _view = tab.$1;
+                                _immersive = false;
+                              }),
+                            ),
+                            const SizedBox(width: 7),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                   Expanded(child: _central(c, pista, cover, player)),
-                  _meta(c, pista, esFav),
-                  _scrubber(c, player),
-                  const SizedBox(height: 8),
-                  _controls(c, player),
-                  const SizedBox(height: 12),
+                  if (!immersive) ...<Widget>[
+                    _meta(c, pista, esFav),
+                    _scrubber(c, player),
+                    const SizedBox(height: 8),
+                    _controls(c, player),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ),
             ),
@@ -140,10 +156,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
+              AutoFitText(
                 pista.albumTitulo ?? 'Tu biblioteca',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                minFontSize: 10.5,
                 style: TextStyle(
                   fontFamily: NbFonts.ui,
                   fontSize: 12.5,
@@ -154,10 +171,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ],
           ),
         ),
-        IconButton(
-          onPressed: () => mostrarSelectorDestino(context, ref),
-          icon: Icon(AppIcons.cast, color: c.text, size: 22),
-        ),
+        // "Reproducir en Mi PC" solo tiene sentido con un PC conectado: si no hay
+        // enlace o está desconectado, se oculta (se conserva el ancho para no
+        // descentrar el título de cabecera).
+        if (ref.watch(conexionPcProvider) == ConexionEstado.conectado)
+          IconButton(
+            onPressed: () => mostrarSelectorDestino(context, ref),
+            icon: Icon(AppIcons.cast, color: c.text, size: 22),
+          )
+        else
+          const SizedBox(width: 48),
       ],
     );
   }
@@ -174,7 +197,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           child: Cover(image: cover, size: 320, radius: 22),
         );
       case _View.letra:
-        return _Letra(pistaId: pista.id);
+        // Toca la letra para entrar/salir de pantalla completa.
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _immersive = !_immersive),
+          child: _Letra(pistaId: pista.id),
+        );
       case _View.cola:
         return _Cola(player: player);
     }
@@ -188,14 +216,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
+              // Título completo sin recorte (auto-ajusta y, si hace falta, 2 líneas).
+              AutoFitText(
                 pista.titulo,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+                minFontSize: 16,
                 style: TextStyle(
                   fontFamily: NbFonts.display,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
+                  height: 1.12,
                   color: c.text,
                 ),
               ),
@@ -214,15 +244,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 4),
+        // Acciones compactas (más pequeñas que el resto de la fila).
         _DownloadButton(pistaId: pista.id),
         _KaraokeIconButton(pistaId: pista.id),
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           onPressed: () =>
               ref.read(favoritesDaoProvider).setFavorita(pista.id, !esFav),
           icon: Icon(
             esFav ? AppIcons.heartFilled : AppIcons.heart,
             color: esFav ? c.accent : c.text2,
-            size: 26,
+            size: 21,
           ),
         ),
       ],
@@ -388,7 +422,7 @@ class _Letra extends ConsumerStatefulWidget {
 }
 
 class _LetraState extends ConsumerState<_Letra> {
-  static const double _itemExtent = 50;
+  static const double _itemExtent = 58;
   final ScrollController _scroll = ScrollController();
   int _lastActive = -1;
 
@@ -452,18 +486,24 @@ class _LetraState extends ConsumerState<_Letra> {
       itemCount: lyrics.synced.length,
       itemBuilder: (BuildContext context, int i) {
         final bool isActive = i == active;
-        return Center(
-          child: Text(
-            lyrics.synced[i].text.isEmpty ? '♪' : lyrics.synced[i].text,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: NbFonts.display,
-              fontSize: isActive ? 19 : 16,
-              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-              height: 1.25,
-              color: isActive ? c.text : c.text3,
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Center(
+            // AutoFitText: la línea (incluida la activa en negrita) siempre se ve
+            // completa, ocupando más ancho y reduciéndose si hace falta, sin pasar
+            // a recorte ni desaparecer.
+            child: AutoFitText(
+              lyrics.synced[i].text.isEmpty ? '♪' : lyrics.synced[i].text,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              minFontSize: 13,
+              style: TextStyle(
+                fontFamily: NbFonts.display,
+                fontSize: isActive ? 20 : 16,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                height: 1.2,
+                color: isActive ? c.text : c.text3,
+              ),
             ),
           ),
         );
@@ -529,6 +569,8 @@ class _KaraokeIconButton extends ConsumerWidget {
       label: 'Karaoke',
       child: IconButton(
         tooltip: 'Karaoke',
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         onPressed: enabled
             ? () async {
                 final bool ok = await ref
@@ -545,7 +587,7 @@ class _KaraokeIconButton extends ConsumerWidget {
             : null,
         icon: Icon(
           AppIcons.mic,
-          size: 24,
+          size: 20,
           color: karaoke ? c.accent : (enabled ? c.text2 : c.text3),
         ),
       ),
@@ -563,16 +605,20 @@ class _Cola extends ConsumerWidget {
     final NbColors c = context.nb;
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 40);
+    // Cola en el orden efectivo (refleja la baraja real con aleatorio activo).
+    // `orden[i]` es el índice original de la pista que ocupa la fila i.
+    final List<int> orden = ordenEfectivo(player.order, player.queue.length);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 12),
-      itemCount: player.queue.length,
+      itemCount: orden.length,
       itemBuilder: (BuildContext context, int i) {
-        final Pista p = player.queue[i];
-        final bool actual = i == player.index;
+        final int origIdx = orden[i];
+        final Pista p = player.queue[origIdx];
+        final bool actual = origIdx == player.index;
         return ListTile(
           dense: true,
           onTap: () =>
-              ref.read(playerControllerProvider.notifier).irACola(i),
+              ref.read(playerControllerProvider.notifier).irACola(origIdx),
           leading: Cover(
             image: resolver.imageFor(p.coverPath, cacheWidth: px),
             size: 40,
@@ -623,21 +669,24 @@ class _DownloadButton extends ConsumerWidget {
     final DescargaAudio? d = ref.watch(descargaEstadoProvider(pistaId)).value;
     final String? estado = d?.estado;
 
+    const BoxConstraints compact = BoxConstraints(minWidth: 40, minHeight: 40);
     if (estado == DownloadEstado.done) {
       return IconButton(
         tooltip: 'Descargada · quitar',
+        visualDensity: VisualDensity.compact,
+        constraints: compact,
         onPressed: () =>
             ref.read(downloadQueueProvider.notifier).eliminar(pistaId),
-        icon: Icon(AppIcons.downloadDone, color: c.accent, size: 24),
+        icon: Icon(AppIcons.downloadDone, color: c.accent, size: 20),
       );
     }
     if (estado == DownloadEstado.downloading ||
         estado == DownloadEstado.pending) {
       return Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         child: SizedBox(
-          width: 20,
-          height: 20,
+          width: 18,
+          height: 18,
           child: CircularProgressIndicator(strokeWidth: 2, color: c.accent),
         ),
       );
@@ -648,9 +697,11 @@ class _DownloadButton extends ConsumerWidget {
     }
     return IconButton(
       tooltip: 'Descargar',
+      visualDensity: VisualDensity.compact,
+      constraints: compact,
       onPressed: () =>
           ref.read(downloadQueueProvider.notifier).encolarPista(pistaId),
-      icon: Icon(AppIcons.download, color: c.text2, size: 24),
+      icon: Icon(AppIcons.download, color: c.text2, size: 20),
     );
   }
 }

@@ -184,6 +184,19 @@ class DownloadRepository {
     );
   }
 
+  /// Garantiza la portada local de [albumId]: si ya está en disco la devuelve; si
+  /// no, la descarga (reusa [_descargarAsset]) y la devuelve, o null si no existe
+  /// (404) o falla. Pensado para materializar la carátula de la notificación de la
+  /// pista en curso aunque se reproduzca en streaming (sin descargarla entera).
+  Future<File?> ensureCover(PairedPc pc, int albumId) async {
+    final File dest = store.coverFile(albumId);
+    if (await dest.exists()) {
+      return dest;
+    }
+    await _descargarAsset(pc, AssetTipo.cover, albumId);
+    return await dest.exists() ? dest : null;
+  }
+
   // ── Imágenes (portada de álbum / foto de artista) ─────────────────────────
   /// Descarga la imagen [tipo]/[refId] a disco. Deduplicada: si ya está
   /// `done`/`unavailable` no hace nada. 404 ⇒ `unavailable` (no se reintenta).

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/nb_colors.dart';
 import '../theme/nb_theme.dart';
+import '../util/responsive.dart';
 
 /// Encabezado de sección con acción opcional. Espejo de `SectionHead`.
 class SectionHead extends StatelessWidget {
@@ -21,6 +22,7 @@ class SectionHead extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
+    final double size = (big ? 23.0 : 20.0) * context.uiScale;
     return Padding(
       padding: const EdgeInsets.only(bottom: 13),
       child: Row(
@@ -33,9 +35,9 @@ class SectionHead extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: NbFonts.display,
-                fontSize: big ? 21 : 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.02 * (big ? 21 : 18),
+                fontSize: size,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.02 * size,
                 color: c.text,
               ),
             ),
@@ -47,8 +49,8 @@ class SectionHead extends StatelessWidget {
                 actionLabel!,
                 style: TextStyle(
                   fontFamily: NbFonts.ui,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13 * context.uiScale,
+                  fontWeight: FontWeight.w700,
                   color: c.text3,
                 ),
               ),

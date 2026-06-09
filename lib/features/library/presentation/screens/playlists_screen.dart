@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/search/fuzzy.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
+import '../../../../shared/widgets/section_label.dart';
 import '../../../../shared/widgets/top_bar.dart';
+import '../../application/library_filters.dart';
 import '../../application/library_providers.dart';
 import '../widgets/library_cards.dart';
+import '../widgets/library_filter_bar.dart';
 import '../widgets/playlist_dialogs.dart';
 
 /// Pestaña Playlists: playlists locales del teléfono (editables) y las del PC
@@ -20,67 +24,127 @@ class PlaylistsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final List<PlaylistLocal> locales =
+    // Bases sin filtrar (deciden el estado vacío y si se muestra la barra).
+    final List<PlaylistLocal> localesBase =
         ref.watch(playlistsLocalesProvider).value ?? const <PlaylistLocal>[];
-    // "Tus playlists" = locales + playlists del PC guardadas; "Del PC" = el resto.
-    final List<Playlist> guardadas = ref.watch(playlistsGuardadasProvider);
-    final List<Playlist> delPc = ref.watch(playlistsDelPcNoGuardadasProvider);
-    final bool hayTuyas = locales.isNotEmpty || guardadas.isNotEmpty;
+    final List<Playlist> guardadasBase = ref.watch(playlistsGuardadasProvider);
+    final List<Playlist> delPcBase =
+        ref.watch(playlistsDelPcNoGuardadasProvider);
+    final bool baseVacia =
+        localesBase.isEmpty && guardadasBase.isEmpty && delPcBase.isEmpty;
 
-    return Column(
-      children: <Widget>[
-        TopBar(
-          title: 'Playlists',
-          onProfile: () => context.push('/profile'),
-          trailing: IconButton(
-            tooltip: 'Nueva playlist',
-            onPressed: () async {
+    if (baseVacia) {
+      return Column(
+        children: <Widget>[
+          _topBar(context, ref, c),
+          Expanded(
+            child: _Empty(onCrear: () async {
               final int? id = await crearPlaylistLocal(context, ref);
               if (id != null && context.mounted) {
                 context.push('/playlist-local/$id');
               }
-            },
-            icon: Icon(AppIcons.plus, size: 24, color: c.accent),
+            }),
+          ),
+        ],
+      );
+    }
+
+    // Filtro + orden (difuso, persistido) aplicado a las tres listas.
+    final String q = normalizar(ref.watch(queryPlaylistsProvider));
+    final OrdenPlaylists orden = ref.watch(ordenPlaylistsProvider);
+    final Map<int, int> conteosLocal =
+        ref.watch(conteosPlaylistsLocalesProvider).value ?? const <int, int>{};
+    final Map<int, int> conteosPc =
+        ref.watch(conteosPlaylistsPcProvider).value ?? const <int, int>{};
+
+    final List<PlaylistLocal> locales = filtrarOrdenarPlaylistsLocales(
+        localesBase, q, orden, conteosLocal);
+    final List<Playlist> guardadas =
+        filtrarOrdenarPlaylistsPc(guardadasBase, q, orden, conteosPc);
+    final List<Playlist> delPc =
+        filtrarOrdenarPlaylistsPc(delPcBase, q, orden, conteosPc);
+    final bool hayTuyas = locales.isNotEmpty || guardadas.isNotEmpty;
+    final bool nada = !hayTuyas && delPc.isEmpty;
+
+    return Column(
+      children: <Widget>[
+        _topBar(context, ref, c),
+        LibraryFilterBar(
+          hint: 'Buscar playlists',
+          ordenActivo: orden != OrdenPlaylists.nombreAsc,
+          onChanged: (String v) =>
+              ref.read(queryPlaylistsProvider.notifier).set(v),
+          onAbrirOrden: () => mostrarOrdenSheet<OrdenPlaylists>(
+            context: context,
+            titulo: 'Ordenar playlists',
+            opciones: OrdenPlaylists.values,
+            actual: orden,
+            etiqueta: (OrdenPlaylists o) => o.etiqueta,
+            onSelect: (OrdenPlaylists o) =>
+                ref.read(ordenPlaylistsProvider.notifier).seleccionar(o),
+            onLimpiar: () =>
+                ref.read(ordenPlaylistsProvider.notifier).limpiar(),
           ),
         ),
         Expanded(
-          child: (!hayTuyas && delPc.isEmpty)
-              ? _Empty(onCrear: () async {
-                  final int? id = await crearPlaylistLocal(context, ref);
-                  if (id != null && context.mounted) {
-                    context.push('/playlist-local/$id');
-                  }
-                })
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
-                  children: <Widget>[
-                    if (hayTuyas) ...<Widget>[
-                      const _Header(label: 'Tus playlists'),
-                      _Grid(
-                        children: <Widget>[
-                          for (final PlaylistLocal pl in locales)
-                            LocalPlaylistCard(playlist: pl),
-                          for (final Playlist pl in guardadas)
-                            PlaylistCard(playlist: pl),
-                        ],
-                      ),
+          child: nada
+              ? Center(
+                  child: Text(
+                    'Sin resultados',
+                    style: TextStyle(
+                      fontFamily: NbFonts.ui,
+                      fontSize: 14,
+                      color: c.text3,
+                    ),
+                  ),
+                )
+              : MaxWidth(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+                    children: <Widget>[
+                      if (hayTuyas) ...<Widget>[
+                        const SectionLabel(label: 'Tus playlists'),
+                        _Grid(
+                          children: <Widget>[
+                            for (final PlaylistLocal pl in locales)
+                              LocalPlaylistCard(playlist: pl),
+                            for (final Playlist pl in guardadas)
+                              PlaylistCard(playlist: pl),
+                          ],
+                        ),
+                      ],
+                      if (delPc.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 8),
+                        const SectionLabel(label: 'Del PC'),
+                        _Grid(
+                          children: <Widget>[
+                            for (final Playlist pl in delPc)
+                              PlaylistCard(playlist: pl),
+                          ],
+                        ),
+                      ],
                     ],
-                    if (delPc.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 8),
-                      const _Header(label: 'Del PC'),
-                      _Grid(
-                        children: <Widget>[
-                          for (final Playlist pl in delPc)
-                            PlaylistCard(playlist: pl),
-                        ],
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
         ),
       ],
     );
   }
+
+  Widget _topBar(BuildContext context, WidgetRef ref, NbColors c) => TopBar(
+        title: 'Playlists',
+        onProfile: () => context.push('/profile'),
+        trailing: IconButton(
+          tooltip: 'Nueva playlist',
+          onPressed: () async {
+            final int? id = await crearPlaylistLocal(context, ref);
+            if (id != null && context.mounted) {
+              context.push('/playlist-local/$id');
+            }
+          },
+          icon: Icon(AppIcons.plus, size: 24, color: c.accent),
+        ),
+      );
 }
 
 class _Grid extends StatelessWidget {
@@ -97,29 +161,6 @@ class _Grid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: children,
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final NbColors c = context.nb;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 0, 0, 12),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: NbFonts.ui,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2,
-          color: c.text3,
-        ),
-      ),
     );
   }
 }

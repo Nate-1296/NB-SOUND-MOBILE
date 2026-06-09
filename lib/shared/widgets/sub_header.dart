@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/nb_colors.dart';
 import '../theme/nb_theme.dart';
+import '../util/responsive.dart';
 import 'app_icons.dart';
 
 /// Encabezado de vistas de detalle/overlay con botón de retroceso.
@@ -21,13 +22,14 @@ class SubHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
+    final double size = 20 * context.uiScale;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
       child: Row(
         children: <Widget>[
           IconButton(
             onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-            icon: Icon(AppIcons.back, size: 22, color: c.text),
+            icon: Icon(AppIcons.back, size: 24, color: c.text),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -37,9 +39,9 @@ class SubHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: NbFonts.display,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.02 * 18,
+                fontSize: size,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.02 * size,
                 color: c.text,
               ),
             ),

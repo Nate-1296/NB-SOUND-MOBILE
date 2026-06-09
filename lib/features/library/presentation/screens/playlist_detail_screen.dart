@@ -6,6 +6,7 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
+import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/sub_header.dart';
@@ -13,6 +14,7 @@ import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/player_controller.dart';
 import '../../application/library_providers.dart';
+import '../../application/playlist_covers.dart';
 import '../widgets/pista_list.dart';
 
 /// Detalle de playlist: mosaico, metadatos y pistas en orden.
@@ -34,16 +36,16 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 200);
     final List<ImageProvider> covers = <ImageProvider>[
-      for (final Pista p in pistas)
-        if (resolver.imageFor(p.coverPath, cacheWidth: px)
-            case final ImageProvider img)
+      for (final String path in portadasDistintas(pistas))
+        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
           img,
     ];
 
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: CustomScrollView(
+        child: MaxWidth(
+          child: CustomScrollView(
           slivers: <Widget>[
             SliverToBoxAdapter(
               child: Column(
@@ -140,6 +142,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

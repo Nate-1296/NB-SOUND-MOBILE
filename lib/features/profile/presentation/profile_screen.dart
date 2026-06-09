@@ -7,6 +7,7 @@ import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
 import '../../../shared/theme/theme_controller.dart';
 import '../../../shared/widgets/app_icons.dart';
+import '../../../shared/widgets/section_label.dart';
 import '../../../shared/widgets/sub_header.dart';
 import '../../sync/application/sync_controller.dart';
 import '../../library/application/library_providers.dart';
@@ -129,7 +130,10 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-            const _Section(label: 'Apariencia'),
+            const SectionLabel(
+              label: 'Apariencia',
+              padding: EdgeInsets.fromLTRB(22, 0, 18, 12),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               // Grid de 2 columnas: los chips quedan del mismo ancho (cada celda
@@ -164,7 +168,10 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const _Section(label: 'Dispositivo'),
+            const SectionLabel(
+              label: 'Dispositivo',
+              padding: EdgeInsets.fromLTRB(22, 0, 18, 12),
+            ),
             _Tile(
               icon: AppIcons.cast,
               label: 'Sincronizar con PC',
@@ -227,29 +234,6 @@ class _Stat extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final NbColors c = context.nb;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 0, 18, 12),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontFamily: NbFonts.ui,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2,
-          color: c.text3,
         ),
       ),
     );

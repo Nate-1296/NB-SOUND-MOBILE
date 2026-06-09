@@ -79,6 +79,67 @@ final StreamProvider<Set<int>> favoritasIdsProvider =
   return ref.watch(favoritesDaoProvider).watchFavoritasIds();
 });
 
+// ── Inicio dinámico (refleja gustos + selecciones del catálogo) ───────────────
+final StreamProvider<List<Pista>> masEscuchadasProvider =
+    StreamProvider<List<Pista>>((Ref ref) {
+  return ref.watch(historyDaoProvider).watchMasEscuchadas();
+});
+
+final StreamProvider<Map<int, int>> conteoPorArtistaProvider =
+    StreamProvider<Map<int, int>>((Ref ref) {
+  return ref.watch(historyDaoProvider).watchConteoPorArtista();
+});
+
+/// Artistas más escuchados del usuario. Si aún no hay historial, cae a una
+/// muestra del catálogo para que la sección no quede vacía en un teléfono nuevo.
+final Provider<List<Artista>> topArtistasProvider =
+    Provider<List<Artista>>((Ref ref) {
+  final List<Artista> artistas =
+      ref.watch(artistasProvider).value ?? const <Artista>[];
+  if (artistas.isEmpty) {
+    return const <Artista>[];
+  }
+  final Map<int, int> conteo =
+      ref.watch(conteoPorArtistaProvider).value ?? const <int, int>{};
+  if (conteo.isEmpty) {
+    return artistas.take(12).toList();
+  }
+  final Map<int, Artista> porId = <int, Artista>{
+    for (final Artista a in artistas) a.id: a,
+  };
+  final List<int> ids = conteo.keys.toList()
+    ..sort((int a, int b) => conteo[b]!.compareTo(conteo[a]!));
+  final List<Artista> top = <Artista>[
+    for (final int id in ids)
+      if (porId[id] case final Artista a) a,
+  ];
+  return top.take(12).toList();
+});
+
+/// Álbumes más recientes por año (novedades).
+final Provider<List<Album>> novedadesAlbumsProvider =
+    Provider<List<Album>>((Ref ref) {
+  final List<Album> albums =
+      ref.watch(albumsProvider).value ?? const <Album>[];
+  final List<Album> conAnio = <Album>[
+    for (final Album a in albums)
+      if (a.anio != null) a,
+  ]..sort((Album a, Album b) => b.anio!.compareTo(a.anio!));
+  return conAnio.take(12).toList();
+});
+
+/// Álbumes más antiguos por año (clásicos).
+final Provider<List<Album>> clasicosAlbumsProvider =
+    Provider<List<Album>>((Ref ref) {
+  final List<Album> albums =
+      ref.watch(albumsProvider).value ?? const <Album>[];
+  final List<Album> conAnio = <Album>[
+    for (final Album a in albums)
+      if (a.anio != null) a,
+  ]..sort((Album a, Album b) => a.anio!.compareTo(b.anio!));
+  return conAnio.take(12).toList();
+});
+
 // ── Detalle ────────────────────────────────────────────────────────────────
 final albumProvider =
     FutureProvider.family<Album?, int>((Ref ref, int id) {
@@ -147,11 +208,5 @@ class BusquedaQuery extends Notifier<String> {
 final NotifierProvider<BusquedaQuery, String> busquedaQueryProvider =
     NotifierProvider<BusquedaQuery, String>(BusquedaQuery.new);
 
-final StreamProvider<List<Pista>> resultadosBusquedaProvider =
-    StreamProvider<List<Pista>>((Ref ref) {
-  final String q = ref.watch(busquedaQueryProvider).trim();
-  if (q.isEmpty) {
-    return Stream<List<Pista>>.value(const <Pista>[]);
-  }
-  return ref.watch(catalogDaoProvider).buscarPistas(q);
-});
+// La búsqueda principal (difusa, multi-tipo) vive en `search_providers.dart`
+// (`resultadosBusquedaProvider`). Aquí solo queda el estado de la query.

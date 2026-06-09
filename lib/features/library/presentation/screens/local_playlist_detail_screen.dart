@@ -7,11 +7,13 @@ import '../../../../core/utils/duration_format.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
+import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/player_controller.dart';
 import '../../application/library_providers.dart';
+import '../../application/playlist_covers.dart';
 import '../widgets/playlist_dialogs.dart';
 
 /// Rojo de acción destructiva (convencional, independiente del tema).
@@ -37,8 +39,8 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
         pistas.fold<double>(0, (double a, Pista p) => a + p.duracionSeg);
     final int coversPx = coverCachePx(context, 200);
     final List<ImageProvider> covers = <ImageProvider>[
-      for (final Pista p in pistas)
-        if (resolver.imageFor(p.coverPath, cacheWidth: coversPx)
+      for (final String path in portadasDistintas(pistas))
+        if (resolver.imageFor(path, cacheWidth: coversPx)
             case final ImageProvider img)
           img,
     ];
@@ -46,7 +48,8 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: Column(
+        child: MaxWidth(
+          child: Column(
           children: <Widget>[
             _Header(
               titulo: playlist?.nombre ?? 'Playlist',
@@ -122,28 +125,53 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed: pistas.isEmpty
-                              ? null
-                              : () => ref
-                                  .read(playerControllerProvider.notifier)
-                                  .reproducir(pistas, 0),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: c.accent,
-                            foregroundColor: c.ink,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 12),
-                            shape: const StadiumBorder(),
-                          ),
-                          icon: Icon(AppIcons.play, color: c.ink, size: 22),
-                          label: Text(
-                            'Reproducir',
-                            style: TextStyle(
-                              fontFamily: NbFonts.ui,
-                              fontWeight: FontWeight.w700,
-                              color: c.ink,
+                        Row(
+                          children: <Widget>[
+                            FilledButton.icon(
+                              onPressed: pistas.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playerControllerProvider.notifier)
+                                      .reproducir(pistas, 0),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: c.accent,
+                                foregroundColor: c.ink,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 28, vertical: 12),
+                                shape: const StadiumBorder(),
+                              ),
+                              icon: Icon(AppIcons.play, color: c.ink, size: 22),
+                              label: Text(
+                                'Reproducir',
+                                style: TextStyle(
+                                  fontFamily: NbFonts.ui,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.ink,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () => agregarPistasAPlaylist(
+                                  context, ref, playlistId),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: c.text,
+                                side: BorderSide(color: c.line2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 12),
+                                shape: const StadiumBorder(),
+                              ),
+                              icon: Icon(AppIcons.plus, color: c.text, size: 20),
+                              label: Text(
+                                'Añadir',
+                                style: TextStyle(
+                                  fontFamily: NbFonts.ui,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.text,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -153,7 +181,8 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
                       child: Text(
-                        'Añade pistas desde el menú "⋮" de cualquier canción.',
+                        'Toca "Añadir" para buscar y agregar canciones, o usa el '
+                        'menú "⋮" de cualquier pista.',
                         style: TextStyle(
                           fontFamily: NbFonts.ui,
                           fontSize: 13.5,
@@ -198,6 +227,7 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -8,7 +8,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'app/nb_sound_app.dart';
 import 'core/di/providers.dart';
 import 'core/network/pinned_http_overrides.dart';
+import 'data/db/daos/sync_state_dao.dart';
 import 'data/db/database.dart';
 import 'data/db/seed/dev_seed.dart';
 import 'features/player/application/nb_audio_handler.dart';
@@ -33,9 +34,18 @@ Future<void> main() async {
   final AppDatabase database = AppDatabase();
   await applyDevSeedIfEmpty(database);
 
-  // Preferencia de tema persistida (sobrevive reinicios).
+  // Preferencias persistidas (sobreviven reinicios): tema y estado global del
+  // reproductor (aleatorio/repetición).
+  final SyncStateDao syncState = database.syncStateDao;
   final NbThemeId initialTheme =
-      NbThemeId.fromName(await database.syncStateDao.getValor(kTemaPrefKey));
+      NbThemeId.fromName(await syncState.getValor(kTemaPrefKey));
+  final bool initialShuffle =
+      await syncState.getValor(SyncStateDao.kAleatorio) == '1';
+  final String? repeatPref = await syncState.getValor(SyncStateDao.kRepeticion);
+  final RepeatMode initialRepeat = RepeatMode.values.firstWhere(
+    (RepeatMode m) => m.name == repeatPref,
+    orElse: () => RepeatMode.off,
+  );
 
   final Directory docsDir = await getApplicationDocumentsDirectory();
   final Directory audioDir = Directory(p.join(docsDir.path, 'audio'));
@@ -64,6 +74,8 @@ Future<void> main() async {
         audioHandlerProvider.overrideWithValue(audioHandler),
         appAudioDirProvider.overrideWithValue(audioDir),
         initialThemeProvider.overrideWithValue(initialTheme),
+        initialShuffleProvider.overrideWithValue(initialShuffle),
+        initialRepeatProvider.overrideWithValue(initialRepeat),
       ],
       child: const NbSoundApp(),
     ),

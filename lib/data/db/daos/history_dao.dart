@@ -54,6 +54,46 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
     });
   }
 
+  /// Pistas **más escuchadas** (por nº de reproducciones), de más a menos.
+  Stream<List<Pista>> watchMasEscuchadas({int limit = 12}) {
+    final Expression<int> conteo = historialLocal.id.count();
+    final query = select(historialLocal).join(<Join<HasResultSet, dynamic>>[
+      innerJoin(pistas, pistas.id.equalsExp(historialLocal.pistaId)),
+    ])
+      ..addColumns(<Expression<Object>>[conteo])
+      ..groupBy(<Expression<Object>>[historialLocal.pistaId])
+      ..orderBy(<OrderingTerm>[
+        OrderingTerm(expression: conteo, mode: OrderingMode.desc),
+      ])
+      ..limit(limit);
+    return query
+        .watch()
+        .map((rows) => rows.map((r) => r.readTable(pistas)).toList());
+  }
+
+  /// Nº de reproducciones por artista (artistaId → conteo), para derivar los
+  /// artistas más escuchados del usuario. Solo cuenta pistas con artista.
+  Stream<Map<int, int>> watchConteoPorArtista() {
+    final Expression<int> conteo = historialLocal.id.count();
+    final query = selectOnly(historialLocal).join(<Join<HasResultSet, dynamic>>[
+      innerJoin(pistas, pistas.id.equalsExp(historialLocal.pistaId)),
+    ])
+      ..addColumns(<Expression<Object>>[pistas.artistaId, conteo])
+      ..where(pistas.artistaId.isNotNull())
+      ..groupBy(<Expression<Object>>[pistas.artistaId]);
+    return query.watch().map((rows) {
+      final Map<int, int> out = <int, int>{};
+      for (final row in rows) {
+        final int? aid = row.read(pistas.artistaId);
+        final int? c = row.read(conteo);
+        if (aid != null && c != null) {
+          out[aid] = c;
+        }
+      }
+      return out;
+    });
+  }
+
   /// Entradas aún no subidas al PC (para la tanda de sync).
   Future<List<HistorialEntry>> noSubidos() =>
       (select(historialLocal)..where((t) => t.subido.equals(false))).get();

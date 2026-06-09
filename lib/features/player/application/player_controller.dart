@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
@@ -8,17 +9,29 @@ import 'package:just_audio/just_audio.dart' show LoopMode;
 import '../../../core/di/providers.dart';
 import '../../../data/db/daos/downloads_dao.dart';
 import '../../../data/db/daos/history_dao.dart';
+import '../../../data/db/daos/sync_state_dao.dart';
 import '../../../data/db/database.dart';
 import '../../../core/security/secure_store.dart';
 import '../../karaoke/application/karaoke_providers.dart';
 import '../../offline/application/download_providers.dart';
 import '../../offline/data/download_repository.dart';
+import '../../offline/data/offline_store.dart';
 import '../../sync/application/remote_media_provider.dart';
 import '../../sync/application/sync_controller.dart';
 import 'nb_audio_handler.dart';
 
 /// Modo de repetición (espejo del contrato WS: ninguno|una|todas).
 enum RepeatMode { off, one, all }
+
+/// Orden efectivo de reproducción para [length] elementos: usa [order] si es una
+/// permutación válida (misma longitud); si no (vacío o desincronizado), cae al
+/// orden natural `[0, 1, …, length)`. Función pura (testeable sin reproductor).
+List<int> ordenEfectivo(List<int> order, int length) {
+  if (order.length == length) {
+    return order;
+  }
+  return <int>[for (int i = 0; i < length; i++) i];
+}
 
 /// Estado observable del reproductor local. El mismo contrato lo cumplirá el
 /// controlador remoto (Spotify Connect) en la tanda de control remoto.
@@ -31,6 +44,7 @@ class PlayerState {
     required this.duration,
     required this.shuffle,
     required this.repeat,
+    this.order = const <int>[],
     this.karaoke = false,
   });
 
@@ -51,6 +65,16 @@ class PlayerState {
   final Duration duration;
   final bool shuffle;
   final RepeatMode repeat;
+
+  /// Orden efectivo de reproducción (índices de [queue] en el orden en que
+  /// sonarán). Vacío = orden natural. Con aleatorio activo, refleja la baraja
+  /// real, de modo que la Cola muestre qué sigue de verdad.
+  final List<int> order;
+
+  /// Cola en el orden efectivo de reproducción. Si [order] no es válido (vacío o
+  /// desincronizado de [queue]), cae al orden natural.
+  List<Pista> get colaOrdenada =>
+      <Pista>[for (final int i in ordenEfectivo(order, queue.length)) queue[i]];
 
   /// La pista actual suena en modo karaoke (instrumental). Aplica solo a la
   /// pista en curso; se resetea al cambiar de pista.
@@ -78,6 +102,7 @@ class PlayerState {
     Duration? duration,
     bool? shuffle,
     RepeatMode? repeat,
+    List<int>? order,
     bool? karaoke,
   }) {
     return PlayerState(
@@ -88,6 +113,7 @@ class PlayerState {
       duration: duration ?? this.duration,
       shuffle: shuffle ?? this.shuffle,
       repeat: repeat ?? this.repeat,
+      order: order ?? this.order,
       karaoke: karaoke ?? this.karaoke,
     );
   }
@@ -102,11 +128,20 @@ final Provider<NbAudioHandler> audioHandlerProvider =
   );
 });
 
+/// Aleatorio inicial (preferencia persistida). Se sobreescribe en `main()` tras
+/// leer la BD; por defecto, desactivado. Igual patrón que `initialThemeProvider`.
+final Provider<bool> initialShuffleProvider = Provider<bool>((Ref ref) => false);
+
+/// Repetición inicial (preferencia persistida). Se sobreescribe en `main()`.
+final Provider<RepeatMode> initialRepeatProvider =
+    Provider<RepeatMode>((Ref ref) => RepeatMode.off);
+
 class PlayerController extends Notifier<PlayerState> {
   late final NbAudioHandler _handler;
   late final HistoryDao _history;
   late final DownloadsDao _downloads;
   late final DownloadRepository _downloadRepo;
+  late final OfflineStore _store;
   int? _lastRecordedIndex;
 
   @override
@@ -115,8 +150,15 @@ class PlayerController extends Notifier<PlayerState> {
     _history = ref.watch(historyDaoProvider);
     _downloads = ref.watch(downloadsDaoProvider);
     _downloadRepo = ref.watch(downloadRepositoryProvider);
+    _store = ref.read(offlineStoreProvider);
     // Permite al handler resolver el instrumental de karaoke descargado (offline).
-    _handler.stemFileFor = ref.read(offlineStoreProvider).stemFile;
+    _handler.stemFileFor = _store.stemFile;
+    // Portada local para la notificación del sistema: la auth de las portadas
+    // `/api/...` no llega al sistema, así que solo sirve un archivo local.
+    _handler.localCoverFor = (int albumId) {
+      final File f = _store.coverFile(albumId);
+      return f.existsSync() ? f : null;
+    };
 
     final List<StreamSubscription<Object?>> subs =
         <StreamSubscription<Object?>>[
@@ -125,6 +167,7 @@ class PlayerController extends Notifier<PlayerState> {
       _handler.durationStream.listen(_onDuration),
       _handler.shuffleStream.listen(_onShuffle),
       _handler.loopStream.listen(_onLoop),
+      _handler.effectiveOrderStream.listen(_onOrder),
     ];
     ref.onDispose(() {
       for (final StreamSubscription<Object?> s in subs) {
@@ -132,8 +175,27 @@ class PlayerController extends Notifier<PlayerState> {
       }
     });
 
-    return PlayerState.initial();
+    // Estado global de aleatorio/repetición (persistido, sobrevive reinicios y
+    // aplica a toda reproducción, no por colección). Se fija en el handler ahora
+    // (son flags de player, válidos aun sin cola) y se refleja en el estado inicial.
+    final bool shuffle0 = ref.read(initialShuffleProvider);
+    final RepeatMode repeat0 = ref.read(initialRepeatProvider);
+    _handler.setShuffleMode(
+      shuffle0 ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+    );
+    _handler.setRepeatMode(_repeatToService(repeat0));
+
+    return PlayerState.initial().copyWith(shuffle: shuffle0, repeat: repeat0);
   }
+
+  static AudioServiceRepeatMode _repeatToService(RepeatMode m) => switch (m) {
+        RepeatMode.off => AudioServiceRepeatMode.none,
+        RepeatMode.one => AudioServiceRepeatMode.one,
+        RepeatMode.all => AudioServiceRepeatMode.all,
+      };
+
+  void _persistir(String clave, String valor) =>
+      ref.read(syncStateDaoProvider).setValor(clave, valor);
 
   // ── Comandos ─────────────────────────────────────────────────────────────
   Future<void> reproducir(List<Pista> pistas, int index) async {
@@ -225,11 +287,13 @@ class PlayerController extends Notifier<PlayerState> {
     _handler.seek(Duration(milliseconds: ms));
   }
 
-  void alternarAleatorio() => _handler.setShuffleMode(
-        state.shuffle
-            ? AudioServiceShuffleMode.none
-            : AudioServiceShuffleMode.all,
-      );
+  void alternarAleatorio() {
+    final bool next = !state.shuffle;
+    _handler.setShuffleMode(
+      next ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+    );
+    _persistir(SyncStateDao.kAleatorio, next ? '1' : '0');
+  }
 
   void cicloRepeticion() {
     final RepeatMode next = switch (state.repeat) {
@@ -237,11 +301,8 @@ class PlayerController extends Notifier<PlayerState> {
       RepeatMode.all => RepeatMode.one,
       RepeatMode.one => RepeatMode.off,
     };
-    _handler.setRepeatMode(switch (next) {
-      RepeatMode.off => AudioServiceRepeatMode.none,
-      RepeatMode.one => AudioServiceRepeatMode.one,
-      RepeatMode.all => AudioServiceRepeatMode.all,
-    });
+    _handler.setRepeatMode(_repeatToService(next));
+    _persistir(SyncStateDao.kRepeticion, next.name);
   }
 
   // ── Reacción a los streams del handler ────────────────────────────────────
@@ -269,6 +330,8 @@ class PlayerController extends Notifier<PlayerState> {
 
   void _onShuffle(bool v) => state = state.copyWith(shuffle: v);
 
+  void _onOrder(List<int> o) => state = state.copyWith(order: o);
+
   void _onLoop(LoopMode mode) => state = state.copyWith(
         repeat: switch (mode) {
           LoopMode.off => RepeatMode.off,
@@ -287,6 +350,35 @@ class PlayerController extends Notifier<PlayerState> {
     _lastRecordedIndex = index;
     final Pista p = state.queue[index];
     unawaited(_history.registrarReproduccion(p.id));
+    unawaited(_ensureArtwork(p));
+  }
+
+  /// Asegura una portada local para la pista en curso y la fija en la notificación
+  /// del sistema. Si está descargada, se usa directamente; si se reproduce en
+  /// streaming, se materializa la portada (descarga ligera del asset) y se aplica.
+  /// Best-effort: cualquier fallo se ignora (la notificación queda sin carátula).
+  Future<void> _ensureArtwork(Pista pista) async {
+    final int? albumId = pista.albumId;
+    if (albumId == null) {
+      return;
+    }
+    final File local = _store.coverFile(albumId);
+    if (local.existsSync()) {
+      _handler.setCurrentArt(pista.id, local.path);
+      return;
+    }
+    final PairedPc? pc = ref.read(syncControllerProvider).pc;
+    if (pc == null) {
+      return;
+    }
+    try {
+      final File? file = await _downloadRepo.ensureCover(pc, albumId);
+      if (file != null && state.current?.id == pista.id) {
+        _handler.setCurrentArt(pista.id, file.path);
+      }
+    } catch (_) {
+      // Materialización oportunista: si falla, la notificación queda sin portada.
+    }
   }
 }
 

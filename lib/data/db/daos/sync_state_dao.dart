@@ -24,6 +24,12 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
   /// Marca de tiempo (ISO-8601) de la última sincronización con éxito.
   static const String kUltimaSync = 'ultima_sync';
 
+  /// Modo aleatorio del reproductor (estado global, `'1'`/`'0'`).
+  static const String kAleatorio = 'aleatorio';
+
+  /// Modo de repetición del reproductor (estado global: `off`/`one`/`all`).
+  static const String kRepeticion = 'repeticion';
+
   Stream<String?> watchValor(String clave) =>
       (select(syncEstado)..where((t) => t.clave.equals(clave)))
           .watchSingleOrNull()

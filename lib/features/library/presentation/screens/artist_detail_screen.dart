@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
+import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/section_head.dart';
 import '../../../../shared/widgets/sub_header.dart';
@@ -37,7 +38,8 @@ class ArtistDetailScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: CustomScrollView(
+        child: MaxWidth(
+          child: CustomScrollView(
           slivers: <Widget>[
             SliverToBoxAdapter(
               child: Column(
@@ -121,6 +123,7 @@ class ArtistDetailScreen extends ConsumerWidget {
               sliver: PistaSliverList(pistas: pistas),
             ),
           ],
+        ),
         ),
       ),
     );

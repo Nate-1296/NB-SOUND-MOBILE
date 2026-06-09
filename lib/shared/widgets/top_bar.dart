@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/nb_colors.dart';
 import '../theme/nb_theme.dart';
+import '../util/responsive.dart';
 
 /// Barra superior de las vistas raíz. Espejo de `TopBar` del diseño: avatar de
 /// perfil a la izquierda, título y acción opcional a la derecha.
@@ -24,6 +25,9 @@ class TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
+    final double scale = context.uiScale;
+    final double titleSize = (large ? 26.0 : 22.0) * scale;
+    final double avatar = 40 * scale;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
       child: Row(
@@ -31,8 +35,8 @@ class TopBar extends StatelessWidget {
           GestureDetector(
             onTap: onProfile,
             child: Container(
-              width: 38,
-              height: 38,
+              width: avatar,
+              height: avatar,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: c.bg3,
@@ -43,7 +47,7 @@ class TopBar extends StatelessWidget {
                 'N',
                 style: TextStyle(
                   fontFamily: NbFonts.display,
-                  fontSize: 14,
+                  fontSize: 15 * scale,
                   fontWeight: FontWeight.w800,
                   color: c.accent,
                 ),
@@ -61,8 +65,8 @@ class TopBar extends StatelessWidget {
                     subtitle!.toUpperCase(),
                     style: TextStyle(
                       fontFamily: NbFonts.ui,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12 * scale,
+                      fontWeight: FontWeight.w700,
                       letterSpacing: 1.3,
                       color: c.text3,
                     ),
@@ -73,9 +77,9 @@ class TopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: NbFonts.display,
-                    fontSize: large ? 22 : 19,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.02 * (large ? 22 : 19),
+                    letterSpacing: -0.02 * titleSize,
                     color: c.text,
                     height: 1.1,
                   ),

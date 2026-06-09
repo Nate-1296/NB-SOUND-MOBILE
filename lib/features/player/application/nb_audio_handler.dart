@@ -51,6 +51,12 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
   /// offline; si no, se hace streaming de `/stems`.
   File Function(int pistaId)? stemFileFor;
 
+  /// Resuelve el archivo local de la portada de un álbum (lo fija el
+  /// [PlayerController] desde `OfflineStore`); null si no está descargada. Permite
+  /// que la notificación/lockscreen muestren la carátula: el sistema no envía la
+  /// auth de las portadas `/api/...`, así que solo sirve un archivo local.
+  File? Function(int albumId)? localCoverFor;
+
   Stream<Duration> get positionStream =>
       _player?.positionStream ?? const Stream<Duration>.empty();
   Stream<Duration?> get durationStream =>
@@ -59,6 +65,13 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
       _player?.shuffleModeEnabledStream ?? const Stream<bool>.empty();
   Stream<LoopMode> get loopStream =>
       _player?.loopModeStream ?? const Stream<LoopMode>.empty();
+
+  /// Orden **efectivo** de reproducción (índices originales en el orden en que
+  /// sonarán): la identidad `[0,1,2,…]` si el aleatorio está apagado, o el orden
+  /// barajado si está encendido. Permite que la Cola refleje qué sigue de verdad.
+  Stream<List<int>> get effectiveOrderStream =>
+      _player?.sequenceStateStream.map((_) => _player!.effectiveIndices) ??
+      const Stream<List<int>>.empty();
 
   /// Carga una cola de pistas y empieza a reproducir desde [initialIndex].
   /// [initialPosition] permite reanudar en una posición concreta (p. ej. al
@@ -86,12 +99,39 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     await player.play();
   }
 
+  /// Fija la portada (archivo local) del item en curso si coincide con [pistaId].
+  /// Se usa para mostrar la carátula en la notificación una vez materializada,
+  /// incluso si la pista se está reproduciendo en streaming.
+  void setCurrentArt(int pistaId, String filePath) {
+    final MediaItem? current = mediaItem.value;
+    final String id = pistaId.toString();
+    if (current == null || current.id != id) {
+      return;
+    }
+    final MediaItem updated = current.copyWith(artUri: Uri.file(filePath));
+    mediaItem.add(updated);
+    // Refleja también la portada en la cola (misma identidad).
+    final List<MediaItem> q = queue.value;
+    final int idx = q.indexWhere((MediaItem m) => m.id == id);
+    if (idx >= 0) {
+      final List<MediaItem> nq = List<MediaItem>.of(q);
+      nq[idx] = updated;
+      queue.add(nq);
+    }
+  }
+
   MediaItem _toMediaItem(Pista p) {
     final String? cover = p.coverPath;
     Uri? artUri;
-    if (cover != null && cover.isNotEmpty && cover.startsWith('http')) {
-      // Solo portadas http absolutas (seed). Las `/api/...` requieren auth y la
-      // notificación del sistema no la envía: se omiten para no fallar (401).
+    // Preferencia: archivo local de portada (sirve a la notificación con auth ya
+    // resuelta). Si no está descargada, se materializa luego (setCurrentArt).
+    final File? localCover =
+        p.albumId != null ? localCoverFor?.call(p.albumId!) : null;
+    if (localCover != null && localCover.existsSync()) {
+      artUri = Uri.file(localCover.path);
+    } else if (cover != null && cover.isNotEmpty && cover.startsWith('http')) {
+      // Portadas http absolutas (seed). Las `/api/...` requieren auth y la
+      // notificación del sistema no la envía: se omiten aquí (se materializan).
       artUri = Uri.tryParse(cover);
     }
     return MediaItem(

@@ -128,6 +128,18 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
     return row.read(count) ?? 0;
   }
 
+  /// Nº de pistas por playlist del PC (playlistId → conteo), para ordenar/filtrar.
+  Stream<Map<int, int>> watchConteosPlaylists() {
+    final Expression<int> count = playlistPistas.pistaId.count();
+    final query = selectOnly(playlistPistas)
+      ..addColumns(<Expression<Object>>[playlistPistas.playlistId, count])
+      ..groupBy(<Expression<Object>>[playlistPistas.playlistId]);
+    return query.watch().map((List<TypedResult> rows) => <int, int>{
+          for (final TypedResult row in rows)
+            row.read(playlistPistas.playlistId)!: row.read(count) ?? 0,
+        });
+  }
+
   /// Total de pistas del catálogo (reactivo), para el contador "N de M".
   Stream<int> watchTotalPistas() {
     final count = pistas.id.count();

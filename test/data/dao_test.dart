@@ -45,6 +45,47 @@ void main() {
     expect(pendientes.length, 3); // el historial es append, no se deduplica
   });
 
+  test('HistoryDao: más escuchadas y conteo por artista', () async {
+    await db.catalogDao.upsertArtistas(<ArtistasCompanion>[
+      ArtistasCompanion.insert(id: const Value(10), nombre: 'A'),
+      ArtistasCompanion.insert(id: const Value(20), nombre: 'B'),
+    ]);
+    await db.catalogDao.upsertPistas(<PistasCompanion>[
+      PistasCompanion.insert(
+          id: const Value(1),
+          titulo: 'p1',
+          artistaNombre: 'A',
+          artistaId: const Value(10)),
+      PistasCompanion.insert(
+          id: const Value(2),
+          titulo: 'p2',
+          artistaNombre: 'A',
+          artistaId: const Value(10)),
+      PistasCompanion.insert(
+          id: const Value(3),
+          titulo: 'p3',
+          artistaNombre: 'B',
+          artistaId: const Value(20)),
+    ]);
+    // Reproducciones: p1×3, p2×1, p3×2.
+    for (int i = 0; i < 3; i++) {
+      await db.historyDao.registrarReproduccion(1);
+    }
+    await db.historyDao.registrarReproduccion(2);
+    for (int i = 0; i < 2; i++) {
+      await db.historyDao.registrarReproduccion(3);
+    }
+
+    final List<Pista> mas = await db.historyDao.watchMasEscuchadas().first;
+    // Orden por nº de reproducciones desc: p1(3) > p3(2) > p2(1).
+    expect(mas.map((Pista p) => p.id).toList(), <int>[1, 3, 2]);
+
+    final Map<int, int> conteo =
+        await db.historyDao.watchConteoPorArtista().first;
+    expect(conteo[10], 4); // p1(3) + p2(1)
+    expect(conteo[20], 2); // p3(2)
+  });
+
   test('FavoritesDao: merge last-write-wins por timestamp', () async {
     final DateTime older = DateTime.utc(2026, 1, 1);
     final DateTime newer = DateTime.utc(2026, 2, 1);

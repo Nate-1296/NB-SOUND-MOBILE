@@ -12,9 +12,12 @@ import '../../features/library/presentation/screens/local_playlist_detail_screen
 import '../../features/library/presentation/screens/playlist_detail_screen.dart';
 import '../../features/library/presentation/screens/playlists_screen.dart';
 import '../../features/offline/presentation/descargas_screen.dart';
+import '../../features/player/application/playback.dart';
 import '../../features/player/presentation/player_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/sync/presentation/sync_screen.dart';
+import '../../shared/theme/nb_colors.dart';
+import '../../shared/widgets/mini_player_bar.dart';
 
 final GlobalKey<NavigatorState> _rootKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -82,29 +85,40 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
           ),
         ],
       ),
-      GoRoute(
-        path: '/album/:id',
+      // Vistas de detalle (álbum/artista/playlist) bajo un ShellRoute que les
+      // ancla el mini-reproductor debajo del contenido (nunca lo tapa: queda como
+      // hermano, no como overlay). No aplica a player/perfil/sync/descargas.
+      ShellRoute(
         parentNavigatorKey: _rootKey,
-        builder: (BuildContext context, GoRouterState state) =>
-            AlbumDetailScreen(albumId: _intParam(state, 'id')),
-      ),
-      GoRoute(
-        path: '/artist/:id',
-        parentNavigatorKey: _rootKey,
-        builder: (BuildContext context, GoRouterState state) =>
-            ArtistDetailScreen(artistId: _intParam(state, 'id')),
-      ),
-      GoRoute(
-        path: '/playlist/:id',
-        parentNavigatorKey: _rootKey,
-        builder: (BuildContext context, GoRouterState state) =>
-            PlaylistDetailScreen(playlistId: _intParam(state, 'id')),
-      ),
-      GoRoute(
-        path: '/playlist-local/:id',
-        parentNavigatorKey: _rootKey,
-        builder: (BuildContext context, GoRouterState state) =>
-            LocalPlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+        builder: (
+          BuildContext context,
+          GoRouterState state,
+          Widget child,
+        ) {
+          return _DetailWithMiniPlayer(child: child);
+        },
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/album/:id',
+            builder: (BuildContext context, GoRouterState state) =>
+                AlbumDetailScreen(albumId: _intParam(state, 'id')),
+          ),
+          GoRoute(
+            path: '/artist/:id',
+            builder: (BuildContext context, GoRouterState state) =>
+                ArtistDetailScreen(artistId: _intParam(state, 'id')),
+          ),
+          GoRoute(
+            path: '/playlist/:id',
+            builder: (BuildContext context, GoRouterState state) =>
+                PlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+          ),
+          GoRoute(
+            path: '/playlist-local/:id',
+            builder: (BuildContext context, GoRouterState state) =>
+                LocalPlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+          ),
+        ],
       ),
       GoRoute(
         path: '/player',
@@ -138,6 +152,43 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
     ],
   );
 });
+
+/// Envuelve una vista de detalle con el mini-reproductor anclado debajo. Cuando
+/// hay algo sonando, cede el inset inferior del sistema a la barra (poniendo a 0
+/// el `padding.bottom` del contenido) para que no quede un hueco doble entre la
+/// última pista y el mini. Sin nada sonando, el contenido conserva su SafeArea.
+class _DetailWithMiniPlayer extends ConsumerWidget {
+  const _DetailWithMiniPlayer({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool hasTrack =
+        ref.watch(nowPlayingProvider.select((NowPlaying np) => np.hasTrack));
+    if (!hasTrack) {
+      return child;
+    }
+    final MediaQueryData mq = MediaQuery.of(context);
+    return ColoredBox(
+      color: context.nb.bg,
+      child: Column(
+        children: <Widget>[
+          Expanded(
+            child: MediaQuery(
+              data: mq.copyWith(
+                padding: mq.padding.copyWith(bottom: 0),
+                viewPadding: mq.viewPadding.copyWith(bottom: 0),
+              ),
+              child: child,
+            ),
+          ),
+          const MiniPlayerBar(safeAreaBottom: true),
+        ],
+      ),
+    );
+  }
+}
 
 /// Transición de deslizamiento hacia arriba (estilo reproductor).
 Widget _slideUp(

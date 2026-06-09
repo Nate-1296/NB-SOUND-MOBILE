@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../application/library_providers.dart';
+import '../../application/playlist_covers.dart';
 
 /// Tarjeta de álbum (portada + título + año). La portada llena el ancho
 /// disponible (cuadrada), válido tanto en rejilla como en carrusel.
@@ -60,6 +61,71 @@ class AlbumCard extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta circular de artista (foto + nombre debajo), estilo Spotify. Para
+/// carruseles y rejillas (búsqueda, inicio). Toca para ir al detalle.
+class ArtistCircle extends ConsumerWidget {
+  const ArtistCircle({super.key, required this.artista, this.size = 104});
+
+  final Artista artista;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final NbColors c = context.nb;
+    final ImageProvider? img = ref.watch(coverResolverProvider).imageFor(
+          artista.imagenPath,
+          cacheWidth: coverCachePx(context, size),
+        );
+    return GestureDetector(
+      onTap: () => context.push('/artist/${artista.id}'),
+      child: SizedBox(
+        width: size,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: c.bg3,
+                shape: BoxShape.circle,
+                image: img != null
+                    ? DecorationImage(image: img, fit: BoxFit.cover)
+                    : null,
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x55000000),
+                    blurRadius: 16,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: img == null
+                  ? Icon(AppIcons.user, color: c.text3, size: size * 0.4)
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              artista.nombre,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: NbFonts.ui,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.15,
+                color: c.text,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -186,10 +252,11 @@ class PlaylistCard extends ConsumerWidget {
             const <Pista>[];
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 110);
+    // Solo se resuelven las portadas distintas (≤4): evita decodificar todas las
+    // pistas y que el mosaico repita la misma carátula.
     final List<ImageProvider> covers = <ImageProvider>[
-      for (final Pista p in pistas)
-        if (resolver.imageFor(p.coverPath, cacheWidth: px)
-            case final ImageProvider img)
+      for (final String path in portadasDistintas(pistas))
+        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
           img,
     ];
     return _PlaylistCardBase(
@@ -215,9 +282,8 @@ class LocalPlaylistCard extends ConsumerWidget {
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 110);
     final List<ImageProvider> covers = <ImageProvider>[
-      for (final Pista p in pistas)
-        if (resolver.imageFor(p.coverPath, cacheWidth: px)
-            case final ImageProvider img)
+      for (final String path in portadasDistintas(pistas))
+        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
           img,
     ];
     return _PlaylistCardBase(

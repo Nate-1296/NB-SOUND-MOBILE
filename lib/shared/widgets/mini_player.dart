@@ -18,10 +18,9 @@ class MiniPlayer extends StatelessWidget {
     required this.progress,
     this.cover,
     this.coverGradient,
-    this.positionLabel,
-    this.durationLabel,
     this.onTap,
     this.onToggle,
+    this.onPrev,
     this.onNext,
   });
 
@@ -33,10 +32,9 @@ class MiniPlayer extends StatelessWidget {
   final double progress;
   final ImageProvider? cover;
   final Gradient? coverGradient;
-  final String? positionLabel;
-  final String? durationLabel;
   final VoidCallback? onTap;
   final VoidCallback? onToggle;
+  final VoidCallback? onPrev;
   final VoidCallback? onNext;
 
   @override
@@ -109,29 +107,24 @@ class MiniPlayer extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (positionLabel != null && durationLabel != null) ...<Widget>[
-                          const SizedBox(width: 8),
-                          Text(
-                            '$positionLabel / $durationLabel',
-                            style: TextStyle(
-                              fontFamily: NbFonts.ui,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: c.text3,
-                            ),
-                          ),
-                        ],
-                        IconButton(
-                          onPressed: onToggle,
-                          icon: Icon(
-                            playing ? AppIcons.pause : AppIcons.play,
-                            size: 19,
-                            color: c.text,
-                          ),
+                        const SizedBox(width: 2),
+                        _MiniControl(
+                          icon: AppIcons.prev,
+                          size: 18,
+                          color: c.text2,
+                          onPressed: onPrev,
                         ),
-                        IconButton(
+                        _MiniControl(
+                          icon: playing ? AppIcons.pause : AppIcons.play,
+                          size: 20,
+                          color: c.text,
+                          onPressed: onToggle,
+                        ),
+                        _MiniControl(
+                          icon: AppIcons.next,
+                          size: 18,
+                          color: c.text2,
                           onPressed: onNext,
-                          icon: Icon(AppIcons.next, size: 18, color: c.text2),
                         ),
                       ],
                     ),
@@ -152,6 +145,33 @@ class MiniPlayer extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Botón de control compacto del mini-reproductor (anterior/play/siguiente).
+/// Área táctil reducida para que quepan los tres sin desbordar en teléfonos.
+class _MiniControl extends StatelessWidget {
+  const _MiniControl({
+    required this.icon,
+    required this.size,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final double size;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+      icon: Icon(icon, size: size, color: color),
     );
   }
 }
