@@ -8,6 +8,7 @@ import '../../../core/utils/duration_format.dart';
 import '../../../data/db/database.dart';
 import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
+import '../../../shared/util/responsive.dart';
 import '../../../shared/widgets/app_icons.dart';
 import '../../../shared/widgets/auto_fit_text.dart';
 import '../../../shared/widgets/chip_pill.dart';
@@ -193,8 +194,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ) {
     switch (_view) {
       case _View.portada:
+        // En tablet/Chromebook la portada es mayor (aprovecha el alto disponible),
+        // acotada para no desbordar pantallas estrechas en vertical.
+        final double lado = (320 * context.cardScale)
+            .clamp(280.0, MediaQuery.sizeOf(context).height * 0.46);
         return Center(
-          child: Cover(image: cover, size: 320, radius: 22),
+          child: Cover(image: cover, size: lado, radius: 22),
         );
       case _View.letra:
         // Toca la letra para entrar/salir de pantalla completa.
@@ -422,7 +427,10 @@ class _Letra extends ConsumerStatefulWidget {
 }
 
 class _LetraState extends ConsumerState<_Letra> {
-  static const double _itemExtent = 58;
+  /// Alto de cada línea de letra. Se recalcula por build según el ancho de
+  /// pantalla (en tablet/Chromebook la letra es mucho más grande, lo pidió el
+  /// usuario); `_scrollTo` lo usa para centrar la línea activa.
+  double _itemExtent = 58;
   final ScrollController _scroll = ScrollController();
   int _lastActive = -1;
 
@@ -474,6 +482,13 @@ class _LetraState extends ConsumerState<_Letra> {
   }
 
   Widget _synced(NbColors c, Lyrics lyrics, Duration pos) {
+    // Escala de letra por tamaño de pantalla: en grande, "muchísimo más grande".
+    final double escala = switch (context.bp) {
+      Bp.compact => 1.0,
+      Bp.medium => 1.5,
+      Bp.expanded => 2.0,
+    };
+    _itemExtent = 58 * escala;
     final int active = lyrics.activeIndex(pos);
     if (active != _lastActive) {
       _lastActive = active;
@@ -496,10 +511,10 @@ class _LetraState extends ConsumerState<_Letra> {
               lyrics.synced[i].text.isEmpty ? '♪' : lyrics.synced[i].text,
               textAlign: TextAlign.center,
               maxLines: 2,
-              minFontSize: 13,
+              minFontSize: 13 * escala,
               style: TextStyle(
                 fontFamily: NbFonts.display,
-                fontSize: isActive ? 20 : 16,
+                fontSize: (isActive ? 20 : 16) * escala,
                 fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
                 height: 1.2,
                 color: isActive ? c.text : c.text3,
@@ -699,8 +714,22 @@ class _DownloadButton extends ConsumerWidget {
       tooltip: 'Descargar',
       visualDensity: VisualDensity.compact,
       constraints: compact,
-      onPressed: () =>
-          ref.read(downloadQueueProvider.notifier).encolarPista(pistaId),
+      onPressed: () {
+        // El audio se baja en streaming desde el PC: sin conexión real no hay
+        // nada que descargar. Se avisa en vez de encolar en silencio (la pista
+        // quedaría "pendiente" sin feedback).
+        if (ref.read(conexionPcProvider) != ConexionEstado.conectado) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No se ha podido descargar. Comprueba la sincronización con tu PC.',
+              ),
+            ),
+          );
+          return;
+        }
+        ref.read(downloadQueueProvider.notifier).encolarPista(pistaId);
+      },
       icon: Icon(AppIcons.download, color: c.text2, size: 20),
     );
   }

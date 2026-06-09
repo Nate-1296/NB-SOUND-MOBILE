@@ -37,8 +37,8 @@ Future<void> main() async {
   // Preferencias persistidas (sobreviven reinicios): tema y estado global del
   // reproductor (aleatorio/repetición).
   final SyncStateDao syncState = database.syncStateDao;
-  final NbThemeId initialTheme =
-      NbThemeId.fromName(await syncState.getValor(kTemaPrefKey));
+  final String initialTheme =
+      nbThemeKeyFromStored(await syncState.getValor(kTemaPrefKey));
   final bool initialShuffle =
       await syncState.getValor(SyncStateDao.kAleatorio) == '1';
   final String? repeatPref = await syncState.getValor(SyncStateDao.kRepeticion);

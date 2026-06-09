@@ -249,64 +249,69 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
             onLimpiar: () => ref.read(ordenPistasProvider.notifier).limpiar(),
           ),
         ),
-        // Barra: entrar a selección o acciones de la selección activa.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 6, 2),
-          child: _seleccionando
-              ? Row(
-                  children: <Widget>[
-                    TextButton(
-                      onPressed: incompletas.isEmpty
-                          ? null
-                          : () => setState(() {
-                                if (todasMarcadas) {
-                                  _sel.clear();
-                                } else {
-                                  _sel
-                                    ..clear()
-                                    ..addAll(
-                                        incompletas.map((Pista p) => p.id));
-                                }
-                              }),
-                      child: Text(
-                        todasMarcadas ? 'Ninguna' : 'Todas',
-                        style: TextStyle(color: c.accent),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${_sel.length}',
-                      style: TextStyle(
-                        fontFamily: NbFonts.ui,
-                        fontWeight: FontWeight.w700,
-                        color: c.text2,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Descargar seleccionadas',
-                      onPressed: _sel.isEmpty ? null : _descargar,
-                      icon: Icon(AppIcons.download, color: c.accent),
-                    ),
-                    IconButton(
-                      tooltip: 'Cancelar',
-                      onPressed: _salir,
-                      icon: Icon(AppIcons.close, color: c.text2),
-                    ),
-                  ],
-                )
-              : Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: pistas.isEmpty
-                        ? null
-                        : () => setState(() => _seleccionando = true),
-                    child: Text(
-                      'Seleccionar',
-                      style: TextStyle(color: c.text2),
-                    ),
+        // Barra de selección. "Seleccionar" solo se muestra si hay algo por
+        // descargar (pistas incompletas): si toda la biblioteca ya está
+        // descargada no aparece, y reaparece sola cuando algo queda incompleto
+        // (se quitó una descarga o el PC sincronizó pistas nuevas) — la fuente
+        // `pistasCompletasProvider` es reactiva.
+        if (_seleccionando)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 6, 2),
+            child: Row(
+              children: <Widget>[
+                TextButton(
+                  onPressed: incompletas.isEmpty
+                      ? null
+                      : () => setState(() {
+                            if (todasMarcadas) {
+                              _sel.clear();
+                            } else {
+                              _sel
+                                ..clear()
+                                ..addAll(incompletas.map((Pista p) => p.id));
+                            }
+                          }),
+                  child: Text(
+                    todasMarcadas ? 'Ninguna' : 'Todas',
+                    style: TextStyle(color: c.accent),
                   ),
                 ),
-        ),
+                const Spacer(),
+                Text(
+                  '${_sel.length}',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w700,
+                    color: c.text2,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Descargar seleccionadas',
+                  onPressed: _sel.isEmpty ? null : _descargar,
+                  icon: Icon(AppIcons.download, color: c.accent),
+                ),
+                IconButton(
+                  tooltip: 'Cancelar',
+                  onPressed: _salir,
+                  icon: Icon(AppIcons.close, color: c.text2),
+                ),
+              ],
+            ),
+          )
+        else if (incompletas.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 6, 2),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _seleccionando = true),
+                child: Text(
+                  'Seleccionar',
+                  style: TextStyle(color: c.text2),
+                ),
+              ),
+            ),
+          ),
         Expanded(
           child: pistas.isEmpty
               ? const _SinResultados()

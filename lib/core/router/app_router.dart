@@ -11,10 +11,13 @@ import '../../features/library/presentation/screens/inicio_screen.dart';
 import '../../features/library/presentation/screens/local_playlist_detail_screen.dart';
 import '../../features/library/presentation/screens/playlist_detail_screen.dart';
 import '../../features/library/presentation/screens/playlists_screen.dart';
+import '../../features/equalizer/presentation/ecualizador_screen.dart';
 import '../../features/offline/presentation/descargas_screen.dart';
 import '../../features/player/application/playback.dart';
 import '../../features/player/presentation/player_screen.dart';
-import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/configuracion_screen.dart';
+import '../../features/profile/presentation/general_screen.dart';
+import '../../features/profile/presentation/perfil_screen.dart';
 import '../../features/sync/presentation/sync_screen.dart';
 import '../../shared/theme/nb_colors.dart';
 import '../../shared/widgets/mini_player_bar.dart';
@@ -135,7 +138,25 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
         path: '/profile',
         parentNavigatorKey: _rootKey,
         builder: (BuildContext context, GoRouterState state) =>
-            const ProfileScreen(),
+            const GeneralScreen(),
+      ),
+      GoRoute(
+        path: '/perfil',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const PerfilScreen(),
+      ),
+      GoRoute(
+        path: '/configuracion',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const ConfiguracionScreen(),
+      ),
+      GoRoute(
+        path: '/ecualizador',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const EcualizadorScreen(),
       ),
       GoRoute(
         path: '/sync',

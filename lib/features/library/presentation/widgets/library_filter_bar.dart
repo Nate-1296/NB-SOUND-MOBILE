@@ -135,6 +135,10 @@ Future<void> mostrarOrdenSheet<T>({
     context: context,
     backgroundColor: c.bg2,
     showDragHandle: true,
+    // Se presenta sobre el navegador raíz para que la hoja quede ENCIMA del
+    // mini-reproductor y la barra inferior (si no, sus opciones de abajo quedan
+    // tapadas por el mini-reproductor de la pestaña).
+    useRootNavigator: true,
     builder: (BuildContext sheetContext) {
       return SafeArea(
         child: Column(

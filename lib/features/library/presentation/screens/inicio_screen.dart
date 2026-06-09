@@ -18,7 +18,9 @@ import '../widgets/pista_list.dart';
 
 /// Pestaña Inicio: página dinámica que refleja los gustos del usuario (recientes,
 /// más escuchadas, favoritas, artistas) y ofrece selecciones del catálogo
-/// (novedades, clásicos, explorar) y playlists.
+/// (novedades, clásicos, explorar) y playlists. Las secciones del catálogo **rotan
+/// por sesión** (cada apertura puede mostrar otras), y en pantallas anchas se
+/// muestran más ítems y más grandes.
 class InicioScreen extends ConsumerWidget {
   const InicioScreen({super.key});
 
@@ -35,6 +37,7 @@ class InicioScreen extends ConsumerWidget {
         ref.watch(albumsProvider).value ?? const <Album>[];
     final List<Album> novedades = ref.watch(novedadesAlbumsProvider);
     final List<Album> clasicos = ref.watch(clasicosAlbumsProvider);
+    final List<Album> explora = ref.watch(exploraAlbumsProvider);
     final List<PlaylistLocal> playlistsLocales =
         ref.watch(playlistsLocalesProvider).value ?? const <PlaylistLocal>[];
     final List<Playlist> playlistsGuardadas =
@@ -58,53 +61,63 @@ class InicioScreen extends ConsumerWidget {
       );
     }
 
-    // Una muestra para la cuadrícula "explora": evita repetir lo de novedades.
-    final List<Album> exploraGrid = albums.length <= 6
-        ? albums
-        : (albums.toList()..shuffle()).take(6).toList();
+    // Cuántos ítems por carril/rejilla según el ancho (más en tablet/Chromebook).
+    final int nRail = context.countFor(8);
+    final int nFav = context.countFor(6);
+    final int cols = context.gridCols;
+    final int nExplora = cols * (context.isWide ? 3 : 2);
 
-    return MaxWidth(
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 28),
-        children: <Widget>[
-          TopBar(
-            title: 'NB Sound',
-            onProfile: () => context.push('/profile'),
-            large: true,
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 28),
+      children: <Widget>[
+        TopBar(
+          title: 'NB Sound',
+          onProfile: () => context.push('/profile'),
+          large: true,
+        ),
+        if (recientes.isNotEmpty)
+          _TrackRail(
+            title: 'Vuelve a tu música',
+            pistas: recientes.take(nRail).toList(),
           ),
-          if (recientes.isNotEmpty)
-            _TrackRail(title: 'Vuelve a tu música', pistas: recientes),
-          if (masEscuchadas.isNotEmpty)
-            _TrackRail(title: 'Escuchas a menudo', pistas: masEscuchadas),
-          if (favoritas.isNotEmpty) ...<Widget>[
-            _Pad(
-              child: SectionHead(
-                title: 'Tus favoritas',
-                actionLabel: '${favoritas.length}',
-              ),
-            ),
-            _Pad(child: PistaList(pistas: favoritas.take(6).toList())),
-            const SizedBox(height: 8),
-          ],
-          if (artistas.isNotEmpty)
-            _ArtistRail(title: 'Artistas para ti', artistas: artistas),
-          if (novedades.isNotEmpty)
-            _AlbumRail(title: 'Novedades', albums: novedades),
-          if (exploraGrid.isNotEmpty) ...<Widget>[
-            const _Pad(child: SectionHead(title: 'Explora tu biblioteca')),
-            _AlbumGrid(albums: exploraGrid),
-            const SizedBox(height: 8),
-          ],
-          if (clasicos.isNotEmpty)
-            _AlbumRail(title: 'Clásicos de tu biblioteca', albums: clasicos),
-          if (playlistsLocales.isNotEmpty || playlistsGuardadas.isNotEmpty)
-            _PlaylistRail(
-              title: 'Tus playlists',
-              locales: playlistsLocales,
-              guardadas: playlistsGuardadas,
-            ),
+        if (masEscuchadas.isNotEmpty)
+          _TrackRail(
+            title: 'Escuchas a menudo',
+            pistas: masEscuchadas.take(nRail).toList(),
+          ),
+        if (favoritas.isNotEmpty) ...<Widget>[
+          const _Pad(child: SectionHead(title: 'Tus favoritas')),
+          _Pad(child: PistaList(pistas: favoritas.take(nFav).toList())),
+          const SizedBox(height: 8),
         ],
-      ),
+        if (artistas.isNotEmpty)
+          _ArtistRail(
+            title: 'Artistas para ti',
+            artistas: artistas.take(nRail).toList(),
+          ),
+        if (novedades.isNotEmpty)
+          _AlbumRail(
+            title: 'Novedades',
+            albums: novedades.take(nRail).toList(),
+          ),
+        if (explora.isNotEmpty) ...<Widget>[
+          const _Pad(child: SectionHead(title: 'Explora tu biblioteca')),
+          _AlbumGrid(albums: explora.take(nExplora).toList()),
+          const SizedBox(height: 8),
+        ],
+        if (clasicos.isNotEmpty)
+          _AlbumRail(
+            title: 'Clásicos de tu biblioteca',
+            albums: clasicos.take(nRail).toList(),
+          ),
+        if (playlistsLocales.isNotEmpty || playlistsGuardadas.isNotEmpty)
+          _PlaylistRail(
+            title: 'Tus playlists',
+            locales: playlistsLocales,
+            guardadas: playlistsGuardadas,
+            limite: context.countFor(8),
+          ),
+      ],
     );
   }
 }
@@ -131,13 +144,15 @@ class _TrackRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
     final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 124);
+    final double s = context.cardScale;
+    final double w = 124 * s;
+    final int px = coverCachePx(context, w);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _Pad(child: SectionHead(title: title)),
         SizedBox(
-          height: 176,
+          height: 176 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -150,13 +165,13 @@ class _TrackRail extends ConsumerWidget {
                     .read(playerControllerProvider.notifier)
                     .reproducir(pistas, i),
                 child: SizedBox(
-                  width: 124,
+                  width: w,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Cover(
                         image: resolver.imageFor(p.coverPath, cacheWidth: px),
-                        size: 124,
+                        size: w,
                         radius: 14,
                       ),
                       const SizedBox(height: 8),
@@ -166,7 +181,7 @@ class _TrackRail extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: NbFonts.ui,
-                          fontSize: 13,
+                          fontSize: 13 * context.uiScale,
                           fontWeight: FontWeight.w600,
                           color: c.text,
                         ),
@@ -177,7 +192,7 @@ class _TrackRail extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: NbFonts.ui,
-                          fontSize: 12,
+                          fontSize: 12 * context.uiScale,
                           fontWeight: FontWeight.w500,
                           color: c.text3,
                         ),
@@ -203,19 +218,20 @@ class _AlbumRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double s = context.cardScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _Pad(child: SectionHead(title: title)),
         SizedBox(
-          height: 198,
+          height: 198 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: albums.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
             itemBuilder: (BuildContext context, int i) =>
-                SizedBox(width: 150, child: AlbumCard(album: albums[i])),
+                SizedBox(width: 150 * s, child: AlbumCard(album: albums[i])),
           ),
         ),
         const SizedBox(height: 8),
@@ -232,19 +248,20 @@ class _ArtistRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double s = context.cardScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _Pad(child: SectionHead(title: title)),
         SizedBox(
-          height: 168,
+          height: 168 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: artistas.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
             itemBuilder: (BuildContext context, int i) =>
-                ArtistCircle(artista: artistas[i], size: 104),
+                ArtistCircle(artista: artistas[i], size: 104 * s),
           ),
         ),
         const SizedBox(height: 8),
@@ -253,7 +270,7 @@ class _ArtistRail extends StatelessWidget {
   }
 }
 
-/// Cuadrícula (2×N) de tarjetas de álbum para "explorar".
+/// Cuadrícula de tarjetas de álbum para "explorar".
 class _AlbumGrid extends StatelessWidget {
   const _AlbumGrid({required this.albums});
   final List<Album> albums;
@@ -277,37 +294,43 @@ class _AlbumGrid extends StatelessWidget {
   }
 }
 
-/// Carrusel horizontal de playlists (locales + guardadas).
+/// Carrusel horizontal de playlists (locales + guardadas). Acotado a [limite]
+/// (como las demás secciones), no carga todas.
 class _PlaylistRail extends StatelessWidget {
   const _PlaylistRail({
     required this.title,
     required this.locales,
     required this.guardadas,
+    required this.limite,
   });
   final String title;
   final List<PlaylistLocal> locales;
   final List<Playlist> guardadas;
+  final int limite;
 
   @override
   Widget build(BuildContext context) {
+    final double s = context.cardScale;
     final List<Widget> tarjetas = <Widget>[
       for (final PlaylistLocal pl in locales)
-        SizedBox(width: 150, child: LocalPlaylistCard(playlist: pl)),
+        SizedBox(width: 150 * s, child: LocalPlaylistCard(playlist: pl)),
       for (final Playlist pl in guardadas)
-        SizedBox(width: 150, child: PlaylistCard(playlist: pl)),
+        SizedBox(width: 150 * s, child: PlaylistCard(playlist: pl)),
     ];
+    final List<Widget> visibles =
+        tarjetas.length > limite ? tarjetas.sublist(0, limite) : tarjetas;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _Pad(child: SectionHead(title: title)),
         SizedBox(
-          height: 210,
+          height: 210 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            itemCount: tarjetas.length,
+            itemCount: visibles.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (BuildContext context, int i) => tarjetas[i],
+            itemBuilder: (BuildContext context, int i) => visibles[i],
           ),
         ),
         const SizedBox(height: 8),

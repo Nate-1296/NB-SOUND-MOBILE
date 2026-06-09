@@ -43,6 +43,8 @@ abstract final class AppIcons {
   static const IconData chevronDown = Icons.keyboard_arrow_down_rounded;
   static const IconData chevronLeft = Icons.chevron_left_rounded;
   static const IconData chevronRight = Icons.chevron_right_rounded;
+  static const IconData expandMore = Icons.expand_more_rounded;
+  static const IconData expandLess = Icons.expand_less_rounded;
   static const IconData back = Icons.arrow_back_rounded;
   static const IconData moreV = Icons.more_vert_rounded;
   static const IconData more = Icons.more_horiz_rounded;
@@ -65,6 +67,9 @@ abstract final class AppIcons {
   static const IconData user = Icons.person_outline_rounded;
   static const IconData palette = Icons.palette_outlined;
   static const IconData sliders = Icons.tune_rounded;
+  static const IconData equalizer = Icons.graphic_eq_rounded;
+  static const IconData pin = Icons.push_pin_outlined;
+  static const IconData pinFilled = Icons.push_pin_rounded;
   static const IconData sparkles = Icons.auto_awesome_outlined;
   static const IconData bell = Icons.notifications_none_rounded;
   static const IconData globe = Icons.public_rounded;

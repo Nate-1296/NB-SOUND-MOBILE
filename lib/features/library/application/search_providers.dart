@@ -62,12 +62,24 @@ class ArtistaBusq {
   double puntuar(String q) => puntuarTexto(q, nombreN, nombreT);
 }
 
-/// Resultado de búsqueda multi-tipo, ya ordenado de más a menos coincidencia.
+/// Tipo de sección de resultados (para ordenarlas por coincidencia).
+enum TipoResultado { artistas, albums, pistas }
+
+/// Resultado de búsqueda multi-tipo. Cada lista va ordenada de más a menos
+/// coincidencia, y [orden] dice en qué secuencia mostrar las **secciones** según
+/// cuál tiene la mejor coincidencia (p. ej. "Bad Bu" ⇒ artistas primero; el título
+/// de una canción exacto ⇒ canciones primero). Estilo Spotify: lo más parecido
+/// arriba, sin obligar a bajar por una lista larga de pistas.
 class ResultadosBusqueda {
   const ResultadosBusqueda({
     required this.artistas,
     required this.albums,
     required this.pistas,
+    this.orden = const <TipoResultado>[
+      TipoResultado.artistas,
+      TipoResultado.albums,
+      TipoResultado.pistas,
+    ],
   });
 
   static const ResultadosBusqueda vacio = ResultadosBusqueda(
@@ -80,8 +92,26 @@ class ResultadosBusqueda {
   final List<Album> albums;
   final List<Pista> pistas;
 
+  /// Secciones de más a menos coincidencia (las vacías pueden ir al final).
+  final List<TipoResultado> orden;
+
   bool get estaVacio =>
       artistas.isEmpty && albums.isEmpty && pistas.isEmpty;
+}
+
+/// Ordena las secciones por su mejor puntuación (desc). Pura y testeable.
+List<TipoResultado> ordenarSecciones({
+  required double artistas,
+  required double albums,
+  required double pistas,
+}) {
+  final List<({TipoResultado t, double s})> xs = <({TipoResultado t, double s})>[
+    (t: TipoResultado.artistas, s: artistas),
+    (t: TipoResultado.albums, s: albums),
+    (t: TipoResultado.pistas, s: pistas),
+  ]..sort((({TipoResultado t, double s}) a, ({TipoResultado t, double s}) b) =>
+      b.s.compareTo(a.s));
+  return <TipoResultado>[for (final ({TipoResultado t, double s}) x in xs) x.t];
 }
 
 // ── Índices (se recalculan solo cuando cambia el catálogo) ────────────────────
@@ -110,7 +140,9 @@ final Provider<List<ArtistaBusq>> artistaIndexProvider =
 /// subsecuencias, pero no ruido).
 const double _umbral = 0.3;
 
-List<T> _rank<T, I>(
+/// Rankea y devuelve los ítems (≤ [limite]) **más** la mejor puntuación lograda
+/// (0 si nada superó el umbral), para ordenar las secciones entre sí.
+({List<T> items, double top}) _rank<T, I>(
   List<I> index,
   double Function(I) puntuar,
   T Function(I) extraer, {
@@ -131,7 +163,7 @@ List<T> _rank<T, I>(
       break;
     }
   }
-  return out;
+  return (items: out, top: scored.isEmpty ? 0 : scored.first.s);
 }
 
 /// Resultados de la búsqueda principal (difusa, multi-tipo). Reactivo a la query
@@ -142,23 +174,34 @@ final Provider<ResultadosBusqueda> resultadosBusquedaProvider =
   if (q.isEmpty) {
     return ResultadosBusqueda.vacio;
   }
-  final List<Artista> artistas = _rank<Artista, ArtistaBusq>(
+  final ({List<Artista> items, double top}) artistas = _rank<Artista, ArtistaBusq>(
     ref.watch(artistaIndexProvider),
     (ArtistaBusq a) => a.puntuar(q),
     (ArtistaBusq a) => a.artista,
     limite: 12,
   );
-  final List<Album> albums = _rank<Album, AlbumBusq>(
+  final ({List<Album> items, double top}) albums = _rank<Album, AlbumBusq>(
     ref.watch(albumIndexProvider),
     (AlbumBusq a) => a.puntuar(q),
     (AlbumBusq a) => a.album,
     limite: 12,
   );
-  final List<Pista> pistas = _rank<Pista, PistaBusq>(
+  // Lista de canciones acotada (estilo Spotify): unas pocas, de + a - coincidencia.
+  // Antes 40 obligaba a bajar mucho antes de ver artistas/álbumes.
+  final ({List<Pista> items, double top}) pistas = _rank<Pista, PistaBusq>(
     ref.watch(pistaIndexProvider),
     (PistaBusq p) => p.puntuar(q),
     (PistaBusq p) => p.pista,
-    limite: 40,
+    limite: 8,
   );
-  return ResultadosBusqueda(artistas: artistas, albums: albums, pistas: pistas);
+  return ResultadosBusqueda(
+    artistas: artistas.items,
+    albums: albums.items,
+    pistas: pistas.items,
+    orden: ordenarSecciones(
+      artistas: artistas.top,
+      albums: albums.top,
+      pistas: pistas.top,
+    ),
+  );
 });

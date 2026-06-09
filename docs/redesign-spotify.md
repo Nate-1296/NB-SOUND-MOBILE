@@ -259,3 +259,109 @@ Alcance pedido (resumen del plan en `~/.claude/plans/refactored-gathering-meerka
 - Build: `flutter build apk --release` (universal 82.4 MB) y `--split-per-abi`
   (arm64 30.7 MB, v7a 26.6 MB), firmados con la keystore release; copiados a `dist/`.
 - **Sin** verificación visual en dispositivo. **Sin** commit.
+
+---
+
+## Fase 4 — Ajustes / General / Configuración / Perfil ✅ (code-complete 2026-06-09)
+
+> Validado por `flutter analyze` limpio + **148 tests** verdes + **APK release
+> firmado** (arm64 30.8 MB, v7a 26.8 MB, universal 82.7 MB; keystore propia
+> SHA-256 `00:59:0F:10:…:3B:F7:2D`, `dist/` refrescada). **Sin commit** (no
+> pedido). Verificación visual en dispositivo pendiente.
+
+### Qué se hizo
+- **Reestructura Perfil → General + Configuración + Perfil(stats)**: la antigua
+  pantalla `/profile` es ahora **General** (`general_screen.dart`): tarjeta de
+  perfil (toca → `/perfil`), **estado de conexión real** (reusa `conexionPcProvider`:
+  Sin enlace/Desconectado/Conectado, sin nombre del teléfono) y accesos a
+  Configuración/Sincronizar/Descargas. Nueva **Configuración**
+  (`configuracion_screen.dart`, `/configuracion`): tile Ecualizador + selector de
+  Temas. Nuevo **Perfil** (`perfil_screen.dart`, `/perfil`) con estadísticas:
+  pistas, favoritas, **GB ocupados** (`espacioOfflineProvider`/`OfflineStore`),
+  **nº con karaoke** (`resumenDescargas.stemsDone`). Router: `/profile`→General,
+  + `/perfil`, `/configuracion`, `/ecualizador`. Se borró `profile_screen.dart`.
+- **63 temas data-driven** (`nb_theme.dart` reescrito): se eliminó el `enum
+  NbThemeId` + `NbPalettes` (6 temas) por `NbThemeDef{key,label,brightness,colors}`
+  + `final List<NbThemeDef> kNbThemes` con las **63 paletas portadas del escritorio**
+  (`modelos_qml.py::_TEMAS`, mismo orden; generado por script). Brillo derivado de la
+  luminancia del fondo. `NbTheme.build(String key)`, `nbThemeByKey`,
+  `nbThemeKeyFromStored` (acepta las claves antiguas camelCase de los 6 originales →
+  migración transparente). `ThemeController` ahora guarda **String key**; `main.dart`
+  y `nb_sound_app.dart` migrados. Selector en Configuración: lista **expandible 9 en
+  9** (Mostrar más/menos, "N de 63").
+- **Ecualizador Android** (`features/equalizer/`): el handler crea el `AudioPlayer`
+  con `AudioPipeline(androidAudioEffects:[AndroidEqualizer, AndroidLoudnessEnhancer])`
+  **solo en Android** (iOS/preview = no soportado). `EqualizerController` (persistido
+  en kv `eq_*`, **vivo desde la raíz** vía `ref.listen` en `NbSoundApp` para aplicar
+  al arrancar): activar/desactivar, **presets** (Plano/Graves/Agudos/Voz/Rock/Pop/
+  Electrónica → remuestreados a las bandas reales del dispositivo; tocar una banda
+  pasa a "Personalizado"), **normalizador de volumen** (`AndroidLoudnessEnhancer`,
+  boost moderado), **omitir silencios** (`player.setSkipSilenceEnabled`). Pantalla
+  `ecualizador_screen.dart` (sliders verticales por banda con frecuencia, presets,
+  toggles).
+- **Descargas**: copy del slider clarificado ("Descargar todo automáticamente" +
+  estado activado/desactivado explicado) y **buscador resiliente** (difuso, reusa
+  `fuzzy.dart`) que filtra pistas descargadas y playlists guardadas sin salir.
+
+### Cambios/tradeoffs
+- **`NbThemeId`/`NbPalettes` ELIMINADOS** → cualquier código que los use debe pasar a
+  `kNbThemes`/`nbThemeByKey`. La persistencia del tema pasó de `id.name` (camelCase) a
+  la **clave snake_case** del PC; `nbThemeKeyFromStored` migra los 6 valores antiguos.
+- **Ecualizador**: las bandas reales del dispositivo solo están disponibles **tras
+  empezar a reproducir** (just_audio expone `AndroidEqualizer.parameters` al activarse
+  el reproductor en la plataforma); mientras tanto la pantalla muestra "Reproduce una
+  canción…". El normalizador es un boost fijo del `LoudnessEnhancer` (target en dB,
+  valor moderado), **no** una normalización perceptual completa. iOS queda fuera (la
+  librería no expone efectos ahí).
+- **`AudioPipeline` se crea al construir el `AudioPlayer`** (no se puede añadir
+  después): el handler instancia los efectos en su constructor.
+
+### Faltante / no abordado en F4
+- Verificación visual en dispositivo (General/Perfil/Configuración, ecualizador real,
+  los 63 temas, descargas).
+- Ecualizador iOS.
+- El normalizador podría evolucionar a normalización por ReplayGain si el PC expone esa
+  señal (hoy boost fijo).
+
+---
+
+## Lote de correcciones de F1–F3 (2026-06-09, junto con F4)
+
+Ajustes pedidos sobre las fases anteriores (todo `analyze` limpio + tests):
+
+- **Responsive de pantallas grandes (reorientado)**: el usuario pidió **full-width**
+  (no centrado con huecos laterales) y **más cosas/más grandes** en tablet/Chromebook/
+  landscape. `responsive.dart`: `contentMaxWidthFor` ahora **siempre infinito**
+  (`MaxWidth` queda passthrough; se quitó de Inicio/Playlists), `gridColumns` hasta **7**
+  (≥1600), `uiScaleFor` hasta 1.22, nuevos `cardScaleFor` (tarjetas hasta ×1.6) y
+  `scaledCount`/`countFor` (más ítems por carril). Aplicado a Inicio (más carriles/
+  rejilla, tarjetas mayores), Búsqueda (círculos/álbumes mayores) y **letra del
+  reproductor "muchísimo más grande"** (×1.5 medium, ×2.0 expanded) + portada del
+  reproductor mayor.
+- **Inicio**: "Tus favoritas" **sin el número**; carril "Tus playlists" **acotado**
+  (como los demás); **rotación dinámica por sesión** (`sessionSeedProvider` +
+  `rotarVentana`): novedades/clásicos/artistas/explora muestran otra porción del pool en
+  cada apertura, aunque no entren canciones nuevas.
+- **Búsqueda estilo Spotify**: las **secciones se ordenan por mejor coincidencia**
+  (`ordenarSecciones`; "Bad Bu" ⇒ artistas primero; título exacto ⇒ canciones primero)
+  y la **lista de canciones se acotó** (40 → 8) para no tener que bajar tanto.
+- **Biblioteca**: los bottom sheets (orden/añadir/menú) ahora se presentan con
+  `useRootNavigator: true` → quedan **encima del mini-reproductor** (ya no los tapa); el
+  botón **"Seleccionar"** de Pistas se **oculta si todo está descargado** y reaparece
+  solo cuando algo queda incompleto (reactivo).
+- **Playlists**: **prefetch a disco** de las ≤4 portadas del mosaico
+  (`PlaylistCoverPrefetcher`) para que en aperturas siguientes salgan instantáneas;
+  **anclar** (long-press → hoja) con **máximo 4 por sección** (Tus playlists / Del PC,
+  no 4 en total), tokens tipados `L<id>`/`P<id>` en kv (`playlist_pins.dart`), ancladas
+  **siempre arriba** con distintivo de pin.
+- **Reproductor**: el botón de descarga, si el PC **no está conectado**
+  (`conexionPcProvider`), **avisa** ("No se ha podido descargar. Comprueba la
+  sincronización…") en vez de encolar en silencio.
+- **Aleatorio (fix real)**: `alternarAleatorio` ahora llama a `NbAudioHandler.reshuffle()`
+  (`just_audio.shuffle()`) **al activar**, generando una **baraja nueva cada vez**
+  (antes just_audio reutilizaba el mismo orden → parecía una segunda cola fija).
+
+### Tests añadidos (148 totales, +23)
+`search_orden_test` (orden de secciones), `rotacion_test` (`rotarVentana`),
+`playlist_pins_test` (tokens/`conAncladasArriba`/máximo), `equalizer_test`
+(`gananciasDePreset`), y `widget_test` actualizado a los 63 temas + migración de claves.

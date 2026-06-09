@@ -287,9 +287,15 @@ class PlayerController extends Notifier<PlayerState> {
     _handler.seek(Duration(milliseconds: ms));
   }
 
-  void alternarAleatorio() {
+  Future<void> alternarAleatorio() async {
     final bool next = !state.shuffle;
-    _handler.setShuffleMode(
+    // Al ACTIVAR, regenera una baraja nueva (si no, just_audio reutiliza el mismo
+    // orden barajado y "aleatorio" quedaba como una segunda cola fija). La pista en
+    // curso se conserva como inicio de la nueva baraja.
+    if (next) {
+      await _handler.reshuffle();
+    }
+    await _handler.setShuffleMode(
       next ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
     );
     _persistir(SyncStateDao.kAleatorio, next ? '1' : '0');

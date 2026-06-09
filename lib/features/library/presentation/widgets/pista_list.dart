@@ -207,6 +207,7 @@ Future<void> mostrarMenuPista(
     context: context,
     backgroundColor: c.bg2,
     showDragHandle: true,
+    useRootNavigator: true,
     builder: (BuildContext sheetContext) {
       return SafeArea(
         child: Column(

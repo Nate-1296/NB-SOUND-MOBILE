@@ -12,7 +12,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: NbTheme.build(NbThemeId.negroPuro),
+        theme: NbTheme.build('negro_puro'),
         home: Scaffold(
           bottomNavigationBar: BottomNav(
             currentIndex: 0,
@@ -30,21 +30,31 @@ void main() {
     expect(find.text('Playlists'), findsOneWidget);
   });
 
-  test('los 6 temas existen, con su brillo y acento propio', () {
-    expect(NbThemeId.values.length, 6);
-    // 3 oscuros + 3 claros.
-    final int oscuros = NbThemeId.values
-        .where((NbThemeId t) => t.brightness == Brightness.dark)
-        .length;
-    expect(oscuros, 3);
-    // Cada tema resuelve una paleta y los acentos no son todos iguales.
+  test('catálogo de 63 temas, con claves únicas y acentos variados', () {
+    expect(kNbThemes.length, 63);
+    // Claves únicas.
+    final Set<String> claves = <String>{for (final NbThemeDef t in kNbThemes) t.key};
+    expect(claves.length, 63);
+    // Hay temas oscuros y claros (brillo derivado del fondo).
+    expect(kNbThemes.any((NbThemeDef t) => t.brightness == Brightness.dark), isTrue);
+    expect(kNbThemes.any((NbThemeDef t) => t.brightness == Brightness.light), isTrue);
+    // Acentos variados.
     final Set<int> acentos = <int>{
-      for (final NbThemeId t in NbThemeId.values)
-        (NbPalettes.byId(t).accent.toARGB32()),
+      for (final NbThemeDef t in kNbThemes) t.colors.accent.toARGB32(),
     };
-    expect(acentos.length, greaterThan(1));
-    // Brightness coherente con el id.
-    expect(NbThemeId.fromName('arcillaCalida').brightness, Brightness.light);
-    expect(NbThemeId.fromName('hieloOled').brightness, Brightness.dark);
+    expect(acentos.length, greaterThan(10));
+  });
+
+  test('resolución de clave de tema (incluye legacy camelCase)', () {
+    // Clave válida nueva.
+    expect(nbThemeKeyFromStored('arcilla_calida'), 'arcilla_calida');
+    expect(nbThemeByKey('arcilla_calida').brightness, Brightness.light);
+    expect(nbThemeByKey('hielo_oled').brightness, Brightness.dark);
+    // Claves antiguas (camelCase) de los 6 temas originales se migran.
+    expect(nbThemeKeyFromStored('arcillaCalida'), 'arcilla_calida');
+    expect(nbThemeKeyFromStored('marfilGrafito'), 'marfil_grafito');
+    // Desconocida ⇒ primer tema.
+    expect(nbThemeKeyFromStored('inexistente'), kNbThemes.first.key);
+    expect(nbThemeKeyFromStored(null), kNbThemes.first.key);
   });
 }

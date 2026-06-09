@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../application/library_providers.dart';
+import '../../application/playlist_cover_prefetch.dart';
 import '../../application/playlist_covers.dart';
 
 /// Tarjeta de álbum (portada + título + año). La portada llena el ancho
@@ -174,43 +175,70 @@ class ArtistTile extends ConsumerWidget {
 }
 
 /// Tarjeta de una playlist (PC o local): mosaico 2×2 + nombre + conteo. El tap
-/// navega a [ruta]. La lógica de mosaico es común a ambas.
+/// navega a [ruta]; el long-press abre las acciones de anclaje (si se provee
+/// [onLongPress]). Si [pinned], muestra un distintivo de anclada.
 class _PlaylistCardBase extends StatelessWidget {
   const _PlaylistCardBase({
     required this.nombre,
     required this.subtitulo,
     required this.covers,
     required this.ruta,
+    this.onLongPress,
+    this.pinned = false,
   });
 
   final String nombre;
   final String subtitulo;
   final List<ImageProvider> covers;
   final String ruta;
+  final VoidCallback? onLongPress;
+  final bool pinned;
 
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
     return GestureDetector(
       onTap: () => context.push(ruta),
+      onLongPress: onLongPress,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           AspectRatio(
             aspectRatio: 1,
-            child: covers.length >= 4
-                ? CoverMosaic(images: covers, size: double.infinity, radius: 14)
-                : Cover(
-                    image: covers.isNotEmpty ? covers.first : null,
-                    size: double.infinity,
-                    radius: 14,
-                    overlay: covers.isEmpty
-                        ? Center(
-                            child: Icon(AppIcons.note, color: c.text3, size: 34),
-                          )
-                        : null,
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  child: covers.length >= 4
+                      ? CoverMosaic(
+                          images: covers, size: double.infinity, radius: 14)
+                      : Cover(
+                          image: covers.isNotEmpty ? covers.first : null,
+                          size: double.infinity,
+                          radius: 14,
+                          overlay: covers.isEmpty
+                              ? Center(
+                                  child: Icon(AppIcons.note,
+                                      color: c.text3, size: 34),
+                                )
+                              : null,
+                        ),
+                ),
+                if (pinned)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: c.bg.withValues(alpha: 0.7),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(AppIcons.pinFilled, color: c.accent, size: 14),
+                    ),
                   ),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -241,9 +269,16 @@ class _PlaylistCardBase extends StatelessWidget {
 
 /// Tarjeta de playlist del PC (read-only).
 class PlaylistCard extends ConsumerWidget {
-  const PlaylistCard({super.key, required this.playlist});
+  const PlaylistCard({
+    super.key,
+    required this.playlist,
+    this.onLongPress,
+    this.pinned = false,
+  });
 
   final Playlist playlist;
+  final VoidCallback? onLongPress;
+  final bool pinned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -253,7 +288,9 @@ class PlaylistCard extends ConsumerWidget {
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 110);
     // Solo se resuelven las portadas distintas (≤4): evita decodificar todas las
-    // pistas y que el mosaico repita la misma carátula.
+    // pistas y que el mosaico repita la misma carátula. Además se materializan a
+    // disco (prefetch) para que en la próxima apertura salgan instantáneas.
+    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
     final List<ImageProvider> covers = <ImageProvider>[
       for (final String path in portadasDistintas(pistas))
         if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
@@ -264,15 +301,24 @@ class PlaylistCard extends ConsumerWidget {
       subtitulo: '${pistas.length} pistas',
       covers: covers,
       ruta: '/playlist/${playlist.id}',
+      onLongPress: onLongPress,
+      pinned: pinned,
     );
   }
 }
 
 /// Tarjeta de playlist local (editable; navega al detalle local).
 class LocalPlaylistCard extends ConsumerWidget {
-  const LocalPlaylistCard({super.key, required this.playlist});
+  const LocalPlaylistCard({
+    super.key,
+    required this.playlist,
+    this.onLongPress,
+    this.pinned = false,
+  });
 
   final PlaylistLocal playlist;
+  final VoidCallback? onLongPress;
+  final bool pinned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -281,6 +327,7 @@ class LocalPlaylistCard extends ConsumerWidget {
             const <Pista>[];
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 110);
+    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
     final List<ImageProvider> covers = <ImageProvider>[
       for (final String path in portadasDistintas(pistas))
         if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
@@ -291,6 +338,8 @@ class LocalPlaylistCard extends ConsumerWidget {
       subtitulo: '${pistas.length} pistas',
       covers: covers,
       ruta: '/playlist-local/${playlist.id}',
+      onLongPress: onLongPress,
+      pinned: pinned,
     );
   }
 }

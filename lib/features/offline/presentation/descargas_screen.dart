@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
+import '../../../core/search/fuzzy.dart';
 import '../../../data/db/daos/assets_dao.dart';
 import '../../../data/db/daos/downloads_dao.dart';
 import '../../../data/db/daos/sync_state_dao.dart';
@@ -16,13 +19,57 @@ import '../application/download_providers.dart';
 import '../data/download_repository.dart';
 import '../data/offline_store.dart';
 
+/// True si la pista (o su id si no se conoce) coincide con la búsqueda difusa.
+/// Resiliente a typos/acentos (reusa `fuzzy.dart`). Con query vacía, todo coincide.
+bool _coincideDescarga(Pista? p, String queryNorm) {
+  if (queryNorm.isEmpty) {
+    return true;
+  }
+  if (p == null) {
+    return false;
+  }
+  final String t = normalizar(p.titulo);
+  final String a = normalizar(p.artistaNombre);
+  final double s = <double>[
+    puntuarTexto(queryNorm, t, tokenizar(t)),
+    puntuarTexto(queryNorm, a, tokenizar(a)) * 0.9,
+  ].reduce((double x, double y) => x > y ? x : y);
+  return s >= 0.4;
+}
+
 /// Gestión de la descarga offline: contadores reales (N de M), desglose por
-/// categoría, espacio en disco, playlists guardadas y la lista de pistas.
-class DescargasScreen extends ConsumerWidget {
+/// categoría, espacio en disco, playlists guardadas y la lista de pistas, con un
+/// buscador resiliente para encontrar/borrar sin salir de la pantalla.
+class DescargasScreen extends ConsumerStatefulWidget {
   const DescargasScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DescargasScreen> createState() => _DescargasScreenState();
+}
+
+class _DescargasScreenState extends ConsumerState<DescargasScreen> {
+  final TextEditingController _ctrl = TextEditingController();
+  Timer? _debounce;
+  String _q = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 90), () {
+      if (mounted) {
+        setState(() => _q = v);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final NbColors c = context.nb;
     final List<DescargaAudio> descargas =
         ref.watch(descargasProvider).value ?? const <DescargaAudio>[];
@@ -32,17 +79,30 @@ class DescargasScreen extends ConsumerWidget {
     };
     final DownloadQueueState queue = ref.watch(downloadQueueProvider);
 
+    final String qn = normalizar(_q);
+    final List<DescargaAudio> filtradas = qn.isEmpty
+        ? descargas
+        : <DescargaAudio>[
+            for (final DescargaAudio d in descargas)
+              if (_coincideDescarga(porId[d.pistaId], qn)) d,
+          ];
+
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
         child: CustomScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: <Widget>[
             const SliverToBoxAdapter(child: SubHeader(title: 'Descargas')),
             const SliverToBoxAdapter(child: _Resumen()),
             if (queue.restantes > 0)
               SliverToBoxAdapter(child: _DownloadCounter(queue: queue)),
             const SliverToBoxAdapter(child: _Acciones()),
-            const SliverToBoxAdapter(child: _PlaylistsGuardadasSection()),
+            if (descargas.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _Buscador(controller: _ctrl, onChanged: _onChanged),
+              ),
+            SliverToBoxAdapter(child: _PlaylistsGuardadasSection(queryNorm: qn)),
             if (descargas.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
@@ -54,12 +114,26 @@ class DescargasScreen extends ConsumerWidget {
                       'sin conexión.',
                 ),
               )
+            else if (filtradas.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                  child: Text(
+                    'Sin resultados para "$_q".',
+                    style: TextStyle(
+                      fontFamily: NbFonts.ui,
+                      fontSize: 14,
+                      color: c.text3,
+                    ),
+                  ),
+                ),
+              )
             else ...<Widget>[
               const SliverToBoxAdapter(child: _SeccionTitulo('Pistas')),
               SliverList.builder(
-                itemCount: descargas.length,
+                itemCount: filtradas.length,
                 itemBuilder: (BuildContext context, int i) {
-                  final DescargaAudio d = descargas[i];
+                  final DescargaAudio d = filtradas[i];
                   return _DescargaTile(
                     descarga: d,
                     pista: porId[d.pistaId],
@@ -74,6 +148,49 @@ class DescargasScreen extends ConsumerWidget {
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Buscador resiliente (difuso) de la pantalla de Descargas.
+class _Buscador extends StatelessWidget {
+  const _Buscador({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        style: TextStyle(fontFamily: NbFonts.ui, fontSize: 14.5, color: c.text),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Buscar en tus descargas',
+          hintStyle: TextStyle(color: c.text3, fontFamily: NbFonts.ui),
+          prefixIcon: Icon(AppIcons.search, color: c.text3, size: 19),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: Icon(AppIcons.close, color: c.text3, size: 17),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                ),
+          filled: true,
+          fillColor: c.bg2,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(13),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 2),
         ),
       ),
     );
@@ -293,7 +410,7 @@ class _Acciones extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       Text(
-                        'Descargar todo',
+                        'Descargar todo automáticamente',
                         style: TextStyle(
                           fontFamily: NbFonts.ui,
                           fontSize: 14,
@@ -303,7 +420,11 @@ class _Acciones extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Mantén un espejo offline de toda la biblioteca.',
+                        descargarTodo
+                            ? 'Activado: cada sincronización descarga toda tu '
+                                'biblioteca para tenerla offline.'
+                            : 'Desactivado: descargas solo lo que elijas. '
+                                'Actívalo para un espejo offline completo.',
                         style: TextStyle(
                           fontFamily: NbFonts.ui,
                           fontSize: 11.5,
@@ -338,12 +459,26 @@ class _Acciones extends ConsumerWidget {
 }
 
 /// Sección de playlists guardadas con su progreso de descarga (N/total).
+/// Filtra por el buscador (difuso, resiliente) cuando hay query.
 class _PlaylistsGuardadasSection extends ConsumerWidget {
-  const _PlaylistsGuardadasSection();
+  const _PlaylistsGuardadasSection({required this.queryNorm});
+
+  final String queryNorm;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final List<Playlist> guardadas = ref.watch(playlistsGuardadasProvider);
+    final List<Playlist> base = ref.watch(playlistsGuardadasProvider);
+    final List<Playlist> guardadas = queryNorm.isEmpty
+        ? base
+        : <Playlist>[
+            for (final Playlist p in base)
+              if (puntuarTexto(
+                      queryNorm,
+                      normalizar(p.nombre),
+                      tokenizar(normalizar(p.nombre))) >=
+                  0.4)
+                p,
+          ];
     if (guardadas.isEmpty) {
       return const SizedBox.shrink();
     }

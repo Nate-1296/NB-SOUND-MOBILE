@@ -98,6 +98,7 @@ Future<void> agregarPistasAPlaylist(
     backgroundColor: c.bg2,
     isScrollControlled: true,
     showDragHandle: true,
+    useRootNavigator: true,
     builder: (BuildContext sheetContext) =>
         _AgregarPistasSheet(playlistId: playlistId),
   );
@@ -319,6 +320,7 @@ Future<void> anadirAPlaylist(
     context: context,
     backgroundColor: c.bg2,
     showDragHandle: true,
+    useRootNavigator: true,
     builder: (BuildContext sheetContext) {
       return SafeArea(
         child: Consumer(

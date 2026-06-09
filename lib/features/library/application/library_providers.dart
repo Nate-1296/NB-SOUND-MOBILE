@@ -1,7 +1,30 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../data/db/database.dart';
+
+/// Semilla de la sesión: un valor estable mientras la app está abierta y distinto
+/// en cada arranque. Permite que Inicio **rote** sus selecciones (novedades,
+/// clásicos, explora, artistas) en cada apertura sin que cambien al hacer scroll
+/// (se calcula una sola vez por sesión). Así la pestaña se siente "viva" aunque no
+/// entren canciones nuevas: muestra otras que no se habían mostrado.
+final Provider<int> sessionSeedProvider =
+    Provider<int>((Ref ref) => DateTime.now().microsecondsSinceEpoch & 0x7fffffff);
+
+/// Devuelve [count] elementos de [items] empezando en `offset` y dando la vuelta
+/// (ventana rotada). Pura y testeable. Permite mostrar una porción distinta del
+/// mismo pool ordenado en cada sesión.
+List<T> rotarVentana<T>(List<T> items, int offset, int count) {
+  if (items.isEmpty || count <= 0) {
+    return <T>[];
+  }
+  final int n = items.length;
+  final int o = ((offset % n) + n) % n;
+  final int k = count < n ? count : n;
+  return <T>[for (int i = 0; i < k; i++) items[(o + i) % n]];
+}
 
 // Providers de solo lectura sobre la réplica de catálogo (reactivos vía Drift).
 
@@ -90,8 +113,9 @@ final StreamProvider<Map<int, int>> conteoPorArtistaProvider =
   return ref.watch(historyDaoProvider).watchConteoPorArtista();
 });
 
-/// Artistas más escuchados del usuario. Si aún no hay historial, cae a una
-/// muestra del catálogo para que la sección no quede vacía en un teléfono nuevo.
+/// Artistas más escuchados del usuario, rotando por sesión entre los favoritos
+/// (para que "Artistas para ti" varíe en cada apertura). Si aún no hay historial,
+/// cae a una muestra del catálogo para que la sección no quede vacía.
 final Provider<List<Artista>> topArtistasProvider =
     Provider<List<Artista>>((Ref ref) {
   final List<Artista> artistas =
@@ -99,10 +123,13 @@ final Provider<List<Artista>> topArtistasProvider =
   if (artistas.isEmpty) {
     return const <Artista>[];
   }
+  final int seed = ref.watch(sessionSeedProvider);
   final Map<int, int> conteo =
       ref.watch(conteoPorArtistaProvider).value ?? const <int, int>{};
   if (conteo.isEmpty) {
-    return artistas.take(12).toList();
+    // Sin historial: muestra del catálogo barajada por sesión.
+    final List<Artista> muestra = artistas.toList()..shuffle(Random(seed));
+    return muestra.take(24).toList();
   }
   final Map<int, Artista> porId = <int, Artista>{
     for (final Artista a in artistas) a.id: a,
@@ -113,31 +140,49 @@ final Provider<List<Artista>> topArtistasProvider =
     for (final int id in ids)
       if (porId[id] case final Artista a) a,
   ];
-  return top.take(12).toList();
+  // Pool de los más escuchados, rotado por sesión.
+  return rotarVentana(top.take(36).toList(), seed, 24);
 });
 
-/// Álbumes más recientes por año (novedades).
+/// Álbumes recientes por año (novedades), rotando por sesión dentro del pool de
+/// los más recientes: cada apertura puede mostrar otras novedades aún no vistas.
 final Provider<List<Album>> novedadesAlbumsProvider =
     Provider<List<Album>>((Ref ref) {
   final List<Album> albums =
       ref.watch(albumsProvider).value ?? const <Album>[];
+  final int seed = ref.watch(sessionSeedProvider);
   final List<Album> conAnio = <Album>[
     for (final Album a in albums)
       if (a.anio != null) a,
   ]..sort((Album a, Album b) => b.anio!.compareTo(a.anio!));
-  return conAnio.take(12).toList();
+  return rotarVentana(conAnio.take(40).toList(), seed, 24);
 });
 
-/// Álbumes más antiguos por año (clásicos).
+/// Álbumes más antiguos por año (clásicos), rotando por sesión.
 final Provider<List<Album>> clasicosAlbumsProvider =
     Provider<List<Album>>((Ref ref) {
   final List<Album> albums =
       ref.watch(albumsProvider).value ?? const <Album>[];
+  final int seed = ref.watch(sessionSeedProvider);
   final List<Album> conAnio = <Album>[
     for (final Album a in albums)
       if (a.anio != null) a,
   ]..sort((Album a, Album b) => a.anio!.compareTo(b.anio!));
-  return conAnio.take(12).toList();
+  return rotarVentana(conAnio.take(40).toList(), seed, 24);
+});
+
+/// Muestra del catálogo para "Explora", barajada de forma **estable por sesión**
+/// (no cambia al hacer scroll, sí en cada apertura). Cap generoso; la pantalla
+/// recorta según el ancho.
+final Provider<List<Album>> exploraAlbumsProvider =
+    Provider<List<Album>>((Ref ref) {
+  final List<Album> albums =
+      (ref.watch(albumsProvider).value ?? const <Album>[]).toList();
+  if (albums.isEmpty) {
+    return const <Album>[];
+  }
+  albums.shuffle(Random(ref.watch(sessionSeedProvider)));
+  return albums.take(36).toList();
 });
 
 // ── Detalle ────────────────────────────────────────────────────────────────

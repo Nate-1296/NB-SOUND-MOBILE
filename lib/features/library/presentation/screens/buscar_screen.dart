@@ -125,26 +125,43 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
         subtitle: 'Prueba con otras palabras.',
       );
     }
+    // Secciones en orden de coincidencia (lo más parecido primero). Cada tipo se
+    // renderiza como uno o varios slivers; las secciones vacías se omiten.
+    final List<Widget> slivers = <Widget>[];
+    for (final TipoResultado t in r.orden) {
+      switch (t) {
+        case TipoResultado.artistas:
+          if (r.artistas.isNotEmpty) {
+            slivers.add(
+                SliverToBoxAdapter(child: _ArtistasRail(artistas: r.artistas)));
+          }
+        case TipoResultado.albums:
+          if (r.albums.isNotEmpty) {
+            slivers
+                .add(SliverToBoxAdapter(child: _AlbumesRail(albums: r.albums)));
+          }
+        case TipoResultado.pistas:
+          if (r.pistas.isNotEmpty) {
+            slivers.add(
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(18, 14, 18, 4),
+                  child: SectionHead(title: 'Canciones'),
+                ),
+              ),
+            );
+            slivers.add(
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+                sliver: PistaSliverList(pistas: r.pistas, comoColeccion: false),
+              ),
+            );
+          }
+      }
+    }
     return CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      slivers: <Widget>[
-        if (r.artistas.isNotEmpty)
-          SliverToBoxAdapter(child: _ArtistasRail(artistas: r.artistas)),
-        if (r.albums.isNotEmpty)
-          SliverToBoxAdapter(child: _AlbumesRail(albums: r.albums)),
-        if (r.pistas.isNotEmpty) ...<Widget>[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(18, 14, 18, 4),
-              child: SectionHead(title: 'Canciones'),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-            sliver: PistaSliverList(pistas: r.pistas, comoColeccion: false),
-          ),
-        ],
-      ],
+      slivers: slivers,
     );
   }
 }
@@ -156,6 +173,8 @@ class _ArtistasRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double s = context.cardScale;
+    final double circulo = 104 * s;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -164,14 +183,14 @@ class _ArtistasRail extends StatelessWidget {
           child: SectionHead(title: 'Artistas'),
         ),
         SizedBox(
-          height: 168,
+          height: 168 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: artistas.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
             itemBuilder: (BuildContext context, int i) =>
-                ArtistCircle(artista: artistas[i], size: 104),
+                ArtistCircle(artista: artistas[i], size: circulo),
           ),
         ),
       ],
@@ -186,6 +205,7 @@ class _AlbumesRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double s = context.cardScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -194,14 +214,14 @@ class _AlbumesRail extends StatelessWidget {
           child: SectionHead(title: 'Álbumes'),
         ),
         SizedBox(
-          height: 198,
+          height: 198 * s,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: albums.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
             itemBuilder: (BuildContext context, int i) =>
-                SizedBox(width: 150, child: AlbumCard(album: albums[i])),
+                SizedBox(width: 150 * s, child: AlbumCard(album: albums[i])),
           ),
         ),
       ],

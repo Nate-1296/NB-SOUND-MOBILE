@@ -24,10 +24,11 @@ void main() {
       expect(gridColumns(760), 4);
       expect(gridColumns(1040), 5);
       expect(gridColumns(1300), 6);
+      expect(gridColumns(1700), 7);
     });
     test('es monótona no decreciente', () {
       int prev = 0;
-      for (double w = 200; w <= 1600; w += 20) {
+      for (double w = 200; w <= 1800; w += 20) {
         final int cols = gridColumns(w);
         expect(cols, greaterThanOrEqualTo(prev));
         prev = cols;
@@ -36,19 +37,35 @@ void main() {
   });
 
   group('contentMaxWidthFor', () {
-    test('compact no limita (infinito); anchos sí acotan', () {
+    test('siempre full-width (infinito) en cualquier tamaño', () {
       expect(contentMaxWidthFor(400).isFinite, isFalse);
-      expect(contentMaxWidthFor(800), 760);
-      expect(contentMaxWidthFor(1400), 920);
+      expect(contentMaxWidthFor(800).isFinite, isFalse);
+      expect(contentMaxWidthFor(1400).isFinite, isFalse);
     });
   });
 
   group('uiScaleFor', () {
-    test('crece con el ancho pero se mantiene moderado', () {
+    test('crece con el ancho', () {
       expect(uiScaleFor(400), 1.0);
       expect(uiScaleFor(800), greaterThan(1.0));
       expect(uiScaleFor(1400), greaterThan(uiScaleFor(800)));
-      expect(uiScaleFor(1400), lessThanOrEqualTo(1.2));
+      expect(uiScaleFor(1400), lessThanOrEqualTo(1.25));
+    });
+  });
+
+  group('cardScaleFor', () {
+    test('crece más que el texto en pantallas anchas', () {
+      expect(cardScaleFor(400), 1.0);
+      expect(cardScaleFor(800), greaterThan(1.0));
+      expect(cardScaleFor(1400), greaterThan(cardScaleFor(800)));
+    });
+  });
+
+  group('scaledCount', () {
+    test('muestra más ítems en pantallas anchas', () {
+      expect(scaledCount(400, 6), 6);
+      expect(scaledCount(800, 6), greaterThan(6));
+      expect(scaledCount(1400, 6), greaterThan(scaledCount(800, 6)));
     });
   });
 }

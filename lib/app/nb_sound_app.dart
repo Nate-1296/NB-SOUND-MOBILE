@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/pinned_http_overrides.dart';
 import '../core/router/app_router.dart';
+import '../features/equalizer/application/equalizer_controller.dart';
 import '../features/sync/application/remote_media_provider.dart';
 import '../features/sync/application/sync_controller.dart';
 import '../shared/theme/nb_theme.dart';
@@ -66,8 +67,13 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
 
   @override
   Widget build(BuildContext context) {
-    final NbThemeId themeId = ref.watch(themeControllerProvider);
+    final String themeKey = ref.watch(themeControllerProvider);
     final router = ref.watch(appRouterProvider);
+
+    // Mantiene vivo el ecualizador para que su configuración persistida (bandas,
+    // normalizador, omitir silencios) se aplique al reproducir aunque no se abra
+    // la pantalla de ajustes. No provoca rebuilds de la app (solo lo suscribe).
+    ref.listen(equalizerControllerProvider, (_, _) {});
 
     // Mantiene la huella TLS global sincronizada con el PC emparejado, para que
     // el pinning de NetworkImage/just_audio (HttpOverrides) use el cert correcto.
@@ -77,7 +83,7 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
     return MaterialApp.router(
       title: 'NB Sound',
       debugShowCheckedModeBanner: false,
-      theme: NbTheme.build(themeId),
+      theme: NbTheme.build(themeKey),
       routerConfig: router,
     );
   }

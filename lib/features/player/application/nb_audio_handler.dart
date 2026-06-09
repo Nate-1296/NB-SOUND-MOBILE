@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:just_audio/just_audio.dart';
 
 import '../../../data/db/database.dart';
@@ -19,7 +20,20 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     if (preview) {
       return;
     }
-    final AudioPlayer player = AudioPlayer();
+    // Ecualizador y normalizador de volumen: solo Android los implementa en
+    // just_audio (`AndroidEqualizer`/`AndroidLoudnessEnhancer`). Se insertan en el
+    // pipeline del reproductor al crearlo (no se pueden añadir después). En iOS/
+    // otros quedan null y el ecualizador se reporta como no soportado.
+    final bool android = !kIsWeb && Platform.isAndroid;
+    final AndroidEqualizer? eq = android ? AndroidEqualizer() : null;
+    final AndroidLoudnessEnhancer? loud =
+        android ? AndroidLoudnessEnhancer() : null;
+    _equalizer = eq;
+    _loudness = loud;
+    final AudioPipeline pipeline = AudioPipeline(
+      androidAudioEffects: <AndroidAudioEffect>[?eq, ?loud],
+    );
+    final AudioPlayer player = AudioPlayer(audioPipeline: pipeline);
     _player = player;
     player.playbackEventStream.listen(_broadcastState);
     player.currentIndexStream.listen((int? index) {
@@ -37,6 +51,14 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
 
   final bool preview;
   AudioPlayer? _player;
+
+  /// Efectos de audio Android (null en iOS/otros/preview). El [EqualizerController]
+  /// los lee para exponer bandas/ganancias/normalizador en la pantalla de ajustes.
+  AndroidEqualizer? _equalizer;
+  AndroidLoudnessEnhancer? _loudness;
+
+  AndroidEqualizer? get equalizer => _equalizer;
+  AndroidLoudnessEnhancer? get loudness => _loudness;
 
   /// PC emparejado activo (para resolver pistas en streaming `/api/...`). Lo fija
   /// el [PlayerController] antes de cargar la cola; null si no hay PC.
@@ -217,6 +239,17 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async =>
       _player?.setShuffleModeEnabled(shuffleMode == AudioServiceShuffleMode.all);
+
+  /// Regenera el orden aleatorio (baraja nueva, conservando la pista actual al
+  /// inicio). just_audio mantiene **el mismo** orden barajado entre activaciones de
+  /// shuffle (genera la baraja una sola vez al cargar la cola), por lo que
+  /// "aleatorio" parecía una segunda cola fija. Llamar a `shuffle()` produce una
+  /// permutación fresca cada vez que se activa el modo aleatorio.
+  Future<void> reshuffle() async => _player?.shuffle();
+
+  /// Omitir silencios entre/within pistas (efecto del propio reproductor; Android).
+  Future<void> setSkipSilence(bool enabled) async =>
+      _player?.setSkipSilenceEnabled(enabled);
 
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
