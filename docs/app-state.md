@@ -197,8 +197,11 @@ Cierre del flujo de descargas y mantenimiento en vivo (`flutter analyze` limpio,
   y el código del QR. `PairingRepository.pairPorIp` descubre el puerto (escaneo
   8731–8799 vía `/ping`), **aprende y fija la huella TLS por TOFU**, y llama a
   `/pair`. Validado: emparejó por IP descubriendo el puerto y con la huella
-  correcta (`395f3acd…`); código inválido ⇒ 401. (El PC solo muestra la IP, no el
-  token en texto: el código sigue saliendo del QR — no se tocó el escritorio.)
+  correcta (`395f3acd…`); código inválido ⇒ 401. El PC (NB Sound v1.1.x) muestra,
+  junto a la dirección, un **"Código para conectar sin QR"** de 8 caracteres
+  alfanuméricos legibles; `/pair` acepta el token largo del QR **o** ese código
+  corto (insensible a mayúsculas, un solo uso). Validado con el código corto
+  contra el server real.
 
 ## No hecho / pendiente
 

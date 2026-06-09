@@ -233,7 +233,7 @@ class _ManualIpSheetState extends ConsumerState<_ManualIpSheet> {
           const SizedBox(height: 6),
           Text(
             'En el PC, abre NB Sound → Sincronizar. Escribe la "Dirección en la '
-            'red local" y el código del QR.',
+            'red local" y el "Código para conectar sin QR".',
             style: TextStyle(
               fontFamily: NbFonts.ui,
               fontSize: 13,
@@ -256,8 +256,10 @@ class _ManualIpSheetState extends ConsumerState<_ManualIpSheet> {
             keyboardType: TextInputType.text,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _conectar(),
+            textCapitalization: TextCapitalization.characters,
             style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
-            decoration: _dec(c, 'Código de un solo uso', 'el del QR'),
+            decoration:
+                _dec(c, 'Código para conectar sin QR', '8 caracteres del PC'),
           ),
           const SizedBox(height: 18),
           SizedBox(
