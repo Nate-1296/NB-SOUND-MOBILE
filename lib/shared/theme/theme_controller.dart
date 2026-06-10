@@ -23,13 +23,6 @@ class ThemeController extends Notifier<String> {
     state = key;
     ref.read(syncStateDaoProvider).setValor(kTemaPrefKey, key);
   }
-
-  /// Avanza al siguiente tema del catálogo (tweak rápido).
-  void cycle() {
-    final int i = kNbThemes.indexWhere((NbThemeDef t) => t.key == state);
-    final int next = (i + 1) % kNbThemes.length;
-    select(kNbThemes[next].key);
-  }
 }
 
 /// Provider del tema activo (clave).

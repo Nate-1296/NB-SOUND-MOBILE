@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/utils/duration_format.dart';
 import '../../../../data/db/database.dart';
@@ -12,6 +13,7 @@ import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../offline/data/download_repository.dart';
+import '../../../player/application/playback.dart';
 import '../../../player/application/player_controller.dart';
 import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
@@ -43,7 +45,29 @@ class AlbumDetailScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Column(
                 children: <Widget>[
-                  SubHeader(title: album?.titulo ?? 'Álbum'),
+                  SubHeader(
+                    title: album?.titulo ?? 'Álbum',
+                    trailing: IconButton(
+                      tooltip: 'Más opciones',
+                      icon: Icon(AppIcons.moreV, color: c.text2),
+                      onPressed: pistas.isEmpty
+                          ? null
+                          : () => mostrarMenuColeccion(
+                                context,
+                                ref,
+                                pistas,
+                                extras: <AccionMenuPista>[
+                                  if (album?.artistaId != null)
+                                    (
+                                      label: 'Ir al artista',
+                                      icon: AppIcons.user,
+                                      onTap: () => context
+                                          .push('/artist/${album!.artistaId}'),
+                                    ),
+                                ],
+                              ),
+                    ),
+                  ),
                   Center(
                     child: Cover(
                       image: ref.watch(coverResolverProvider).imageFor(
@@ -69,6 +93,25 @@ class AlbumDetailScreen extends ConsumerWidget {
                             color: c.text,
                           ),
                         ),
+                        // Artista del álbum, enlazado a su página (como Spotify).
+                        if (pistas.isNotEmpty && album?.artistaId != null) ...<Widget>[
+                          const SizedBox(height: 6),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => context.push('/artist/${album!.artistaId}'),
+                            child: Text(
+                              pistas.first.artistaNombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: NbFonts.ui,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: c.text,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 6),
                         Text(
                           <String>[
@@ -90,22 +133,17 @@ class AlbumDetailScreen extends ConsumerWidget {
                               onTap: pistas.isEmpty
                                   ? null
                                   : () => ref
-                                      .read(playerControllerProvider.notifier)
-                                      .reproducir(pistas, 0),
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccion(pistas, 0),
                             ),
                             const SizedBox(width: 12),
                             IconButton(
                               tooltip: 'Reproducir aleatorio',
                               onPressed: pistas.isEmpty
                                   ? null
-                                  : () {
-                                      final ctrl = ref.read(
-                                          playerControllerProvider.notifier);
-                                      ctrl.reproducir(pistas, 0);
-                                      if (!shuffle) {
-                                        ctrl.alternarAleatorio();
-                                      }
-                                    },
+                                  : () => ref
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccionAleatorio(pistas),
                               icon: Icon(
                                 AppIcons.shuffle,
                                 color: shuffle ? c.accent : c.text2,

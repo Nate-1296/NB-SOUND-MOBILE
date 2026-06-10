@@ -10,6 +10,7 @@ import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/section_label.dart';
 import '../../../../shared/widgets/top_bar.dart';
+import '../../../profile/application/profile_providers.dart';
 import '../../application/library_filters.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_pins.dart';
@@ -298,6 +299,7 @@ class PlaylistsScreen extends ConsumerWidget {
   Widget _topBar(BuildContext context, WidgetRef ref, NbColors c) => TopBar(
         title: 'Playlists',
         onProfile: () => context.push('/profile'),
+        avatarInicial: ref.watch(inicialPerfilProvider),
         trailing: IconButton(
           tooltip: 'Nueva playlist',
           onPressed: () async {

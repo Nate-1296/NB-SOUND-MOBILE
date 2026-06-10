@@ -49,3 +49,9 @@ final FutureProvider<PerfilLocal?> perfilProvider =
   }
   return null;
 });
+
+/// Inicial del avatar de perfil (la del nombre real, o 'N' por defecto).
+final Provider<String> inicialPerfilProvider = Provider<String>((Ref ref) {
+  final String nombre = (ref.watch(perfilProvider).value?.nombre ?? '').trim();
+  return nombre.isEmpty ? 'N' : nombre.substring(0, 1).toUpperCase();
+});

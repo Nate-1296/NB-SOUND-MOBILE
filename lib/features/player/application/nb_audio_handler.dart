@@ -79,6 +79,13 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
   /// auth de las portadas `/api/...`, así que solo sirve un archivo local.
   File? Function(int albumId)? localCoverFor;
 
+  /// Estado de favorito de la pista en curso (lo fija el [PlayerController]).
+  /// Permite pintar el botón de favorito en la notificación/lockscreen.
+  bool Function()? esFavoritaActual;
+
+  /// Alterna el favorito de la pista en curso (acción desde la notificación).
+  void Function()? onToggleFavorita;
+
   Stream<Duration> get positionStream =>
       _player?.positionStream ?? const Stream<Duration>.empty();
   Stream<Duration?> get durationStream =>
@@ -97,11 +104,13 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
 
   /// Carga una cola de pistas y empieza a reproducir desde [initialIndex].
   /// [initialPosition] permite reanudar en una posición concreta (p. ej. al
-  /// alternar karaoke sin perder el punto de la canción).
+  /// alternar karaoke sin perder el punto de la canción). Con [autoPlay] en false
+  /// la cola queda cargada **en pausa** (restaurar la sesión al abrir la app).
   Future<void> loadQueue(
     List<Pista> pistas,
     int initialIndex, {
     Duration? initialPosition,
+    bool autoPlay = true,
   }) async {
     final List<MediaItem> items =
         pistas.map(_toMediaItem).toList(growable: false);
@@ -118,7 +127,9 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
       initialIndex: initialIndex < 0 ? 0 : initialIndex,
       initialPosition: initialPosition,
     );
-    await player.play();
+    if (autoPlay) {
+      await player.play();
+    }
   }
 
   /// Fija la portada (archivo local) del item en curso si coincide con [pistaId].
@@ -140,6 +151,47 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
       nq[idx] = updated;
       queue.add(nq);
     }
+  }
+
+  /// Añade [p] al final de la cola (la fuente ya viene resuelta del controlador).
+  /// Mantiene `queue` (audio_service) en sync con la secuencia del player.
+  Future<void> addToQueueEnd(Pista p) async {
+    queue.add(<MediaItem>[...queue.value, _toMediaItem(p)]);
+    await _player?.addAudioSource(_toAudioSource(p));
+  }
+
+  /// Inserta [p] en la posición [index] de la cola (p. ej. `index actual + 1`
+  /// para "reproducir a continuación").
+  Future<void> insertAt(int index, Pista p) async {
+    final List<MediaItem> q = List<MediaItem>.of(queue.value);
+    final int idx = index.clamp(0, q.length);
+    q.insert(idx, _toMediaItem(p));
+    queue.add(q);
+    await _player?.insertAudioSource(idx, _toAudioSource(p));
+  }
+
+  /// Quita la pista en [index] de la cola.
+  Future<void> removeFromQueue(int index) async {
+    final List<MediaItem> q = List<MediaItem>.of(queue.value);
+    if (index < 0 || index >= q.length) {
+      return;
+    }
+    q.removeAt(index);
+    queue.add(q);
+    await _player?.removeAudioSourceAt(index);
+  }
+
+  /// Mueve la pista de [oldIndex] a [newIndex] (semántica `removeAt`+`insert`,
+  /// igual que `ReorderableListView.onReorderItem` y `just_audio.moveAudioSource`).
+  Future<void> moveInQueue(int oldIndex, int newIndex) async {
+    final List<MediaItem> q = List<MediaItem>.of(queue.value);
+    if (oldIndex < 0 || oldIndex >= q.length) {
+      return;
+    }
+    final MediaItem m = q.removeAt(oldIndex);
+    q.insert(newIndex.clamp(0, q.length), m);
+    queue.add(q);
+    await _player?.moveAudioSource(oldIndex, newIndex);
   }
 
   MediaItem _toMediaItem(Pista p) {
@@ -251,6 +303,11 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> setSkipSilence(bool enabled) async =>
       _player?.setSkipSilenceEnabled(enabled);
 
+  /// Velocidad de reproducción (1.0 = normal). Afecta también al tono salvo en
+  /// plataformas que lo compensan; just_audio mantiene el tono en Android/iOS.
+  @override
+  Future<void> setSpeed(double speed) async => _player?.setSpeed(speed);
+
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
     final AudioPlayer? player = _player;
@@ -268,6 +325,25 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
+  @override
+  Future<dynamic> customAction(String name,
+      [Map<String, dynamic>? extras]) async {
+    if (name == 'favorito') {
+      onToggleFavorita?.call();
+      return null;
+    }
+    return super.customAction(name, extras);
+  }
+
+  /// Re-emite el estado para refrescar los controles de la notificación (p. ej.
+  /// cuando cambia el favorito de la pista en curso).
+  void refreshControls() {
+    final AudioPlayer? player = _player;
+    if (player != null) {
+      _broadcastState(player.playbackEvent);
+    }
+  }
+
   Future<void> dispose() async => _player?.dispose();
 
   void _broadcastState(PlaybackEvent event) {
@@ -282,6 +358,14 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
+          if (esFavoritaActual != null)
+            MediaControl.custom(
+              androidIcon: esFavoritaActual!()
+                  ? 'drawable/ic_fav_filled'
+                  : 'drawable/ic_fav',
+              label: 'Me gusta',
+              name: 'favorito',
+            ),
         ],
         systemActions: const <MediaAction>{
           MediaAction.seek,

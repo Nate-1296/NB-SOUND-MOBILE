@@ -62,6 +62,30 @@ class EcualizadorScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (eq.bandasListas) ...<Widget>[
+                const SectionLabel(
+                  label: 'Mis presets',
+                  padding: EdgeInsets.fromLTRB(22, 18, 18, 10),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      for (final String nombre in eq.presetsGuardados.keys)
+                        _PresetGuardadoChip(
+                          nombre: nombre,
+                          onTap: () => ctrl.aplicarPresetGuardado(nombre),
+                          onDelete: () => ctrl.borrarPresetGuardado(nombre),
+                        ),
+                      _GuardarChip(
+                        onTap: () => _guardarPresetActual(context, ctrl),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               const SectionLabel(
                 label: 'Bandas',
@@ -261,6 +285,144 @@ class _SwitchTile extends StatelessWidget {
           fontFamily: NbFonts.ui,
           fontSize: 12.5,
           color: c.text3,
+        ),
+      ),
+    );
+  }
+}
+
+/// Pide un nombre y guarda las ganancias actuales como preset.
+Future<void> _guardarPresetActual(
+    BuildContext context, EqualizerController ctrl) async {
+  final NbColors c = context.nb;
+  final TextEditingController controller = TextEditingController();
+  final String? nombre = await showDialog<String>(
+    context: context,
+    builder: (BuildContext dctx) => AlertDialog(
+      backgroundColor: c.bg2,
+      title: Text('Guardar preset',
+          style: TextStyle(color: c.text, fontFamily: NbFonts.display)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
+        decoration: InputDecoration(
+          hintText: 'Nombre',
+          hintStyle: TextStyle(color: c.text3),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: c.line2),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: c.accent),
+          ),
+        ),
+        onSubmitted: (String v) => Navigator.of(dctx).pop(v.trim()),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(dctx).pop(),
+          child: Text('Cancelar', style: TextStyle(color: c.text2)),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dctx).pop(controller.text.trim()),
+          style: FilledButton.styleFrom(
+            backgroundColor: c.accent,
+            foregroundColor: c.ink,
+          ),
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+  );
+  if (nombre != null && nombre.isNotEmpty) {
+    ctrl.guardarPreset(nombre);
+  }
+}
+
+/// Chip de un preset guardado por el usuario: aplica al tocar, X para borrar.
+class _PresetGuardadoChip extends StatelessWidget {
+  const _PresetGuardadoChip({
+    required this.nombre,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final String nombre;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return Material(
+      color: c.bg2,
+      shape: StadiumBorder(side: BorderSide(color: c.line2)),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 9, 6, 9),
+              child: Text(
+                nombre,
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: c.text2,
+                ),
+              ),
+            ),
+          ),
+          InkWell(
+            onTap: onDelete,
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(2, 9, 12, 9),
+              child: Icon(AppIcons.close, size: 15, color: c.text3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chip para guardar el ecualizador actual como preset.
+class _GuardarChip extends StatelessWidget {
+  const _GuardarChip({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return Material(
+      color: c.soft,
+      shape: StadiumBorder(side: BorderSide(color: c.accent)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(AppIcons.plus, size: 16, color: c.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Guardar actual',
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: c.accent,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

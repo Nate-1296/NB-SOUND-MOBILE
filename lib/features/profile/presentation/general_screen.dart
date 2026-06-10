@@ -6,6 +6,7 @@ import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
 import '../../../shared/widgets/app_icons.dart';
 import '../../../shared/widgets/sub_header.dart';
+import '../../remote_control/presentation/destination_sheet.dart';
 import '../../sync/application/conexion_provider.dart';
 import '../application/profile_providers.dart';
 
@@ -114,6 +115,12 @@ class GeneralScreen extends ConsumerWidget {
             ),
             _Tile(
               icon: AppIcons.cast,
+              label: 'Reproducir en…',
+              subtitle: 'Este teléfono o tu PC',
+              onTap: () => mostrarSelectorDestino(context, ref),
+            ),
+            _Tile(
+              icon: AppIcons.sync,
               label: 'Sincronizar con PC',
               onTap: () => context.push('/sync'),
             ),

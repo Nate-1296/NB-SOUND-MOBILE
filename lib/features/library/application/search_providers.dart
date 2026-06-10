@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/di/providers.dart';
 import '../../../core/search/fuzzy.dart';
+import '../../../data/db/daos/sync_state_dao.dart';
 import '../../../data/db/database.dart';
 import 'library_providers.dart';
 
@@ -62,8 +66,21 @@ class ArtistaBusq {
   double puntuar(String q) => puntuarTexto(q, nombreN, nombreT);
 }
 
+/// Ítem de playlist (del PC) indexado (se puntúa por nombre).
+class PlaylistBusq {
+  PlaylistBusq(this.playlist) : nombreN = normalizar(playlist.nombre) {
+    nombreT = tokenizar(nombreN);
+  }
+
+  final Playlist playlist;
+  final String nombreN;
+  late final List<String> nombreT;
+
+  double puntuar(String q) => puntuarTexto(q, nombreN, nombreT);
+}
+
 /// Tipo de sección de resultados (para ordenarlas por coincidencia).
-enum TipoResultado { artistas, albums, pistas }
+enum TipoResultado { artistas, albums, pistas, playlists }
 
 /// Resultado de búsqueda multi-tipo. Cada lista va ordenada de más a menos
 /// coincidencia, y [orden] dice en qué secuencia mostrar las **secciones** según
@@ -75,10 +92,12 @@ class ResultadosBusqueda {
     required this.artistas,
     required this.albums,
     required this.pistas,
+    required this.playlists,
     this.orden = const <TipoResultado>[
       TipoResultado.artistas,
       TipoResultado.albums,
       TipoResultado.pistas,
+      TipoResultado.playlists,
     ],
   });
 
@@ -86,17 +105,19 @@ class ResultadosBusqueda {
     artistas: <Artista>[],
     albums: <Album>[],
     pistas: <Pista>[],
+    playlists: <Playlist>[],
   );
 
   final List<Artista> artistas;
   final List<Album> albums;
   final List<Pista> pistas;
+  final List<Playlist> playlists;
 
   /// Secciones de más a menos coincidencia (las vacías pueden ir al final).
   final List<TipoResultado> orden;
 
   bool get estaVacio =>
-      artistas.isEmpty && albums.isEmpty && pistas.isEmpty;
+      artistas.isEmpty && albums.isEmpty && pistas.isEmpty && playlists.isEmpty;
 }
 
 /// Ordena las secciones por su mejor puntuación (desc). Pura y testeable.
@@ -104,11 +125,13 @@ List<TipoResultado> ordenarSecciones({
   required double artistas,
   required double albums,
   required double pistas,
+  required double playlists,
 }) {
   final List<({TipoResultado t, double s})> xs = <({TipoResultado t, double s})>[
     (t: TipoResultado.artistas, s: artistas),
     (t: TipoResultado.albums, s: albums),
     (t: TipoResultado.pistas, s: pistas),
+    (t: TipoResultado.playlists, s: playlists),
   ]..sort((({TipoResultado t, double s}) a, ({TipoResultado t, double s}) b) =>
       b.s.compareTo(a.s));
   return <TipoResultado>[for (final ({TipoResultado t, double s}) x in xs) x.t];
@@ -135,6 +158,75 @@ final Provider<List<ArtistaBusq>> artistaIndexProvider =
       ref.watch(artistasProvider).value ?? const <Artista>[];
   return <ArtistaBusq>[for (final Artista a in artistas) ArtistaBusq(a)];
 });
+
+final Provider<List<PlaylistBusq>> playlistIndexProvider =
+    Provider<List<PlaylistBusq>>((Ref ref) {
+  final List<Playlist> playlists =
+      ref.watch(playlistsProvider).value ?? const <Playlist>[];
+  return <PlaylistBusq>[for (final Playlist p in playlists) PlaylistBusq(p)];
+});
+
+/// Búsquedas recientes (persistidas, recientes primero), estilo Spotify. Se
+/// registra una búsqueda cuando produce resultados; el usuario puede borrarlas.
+class BusquedasRecientes extends Notifier<List<String>> {
+  static const int _max = 12;
+
+  @override
+  List<String> build() {
+    _cargar();
+    return const <String>[];
+  }
+
+  Future<void> _cargar() async {
+    final String? raw = await ref
+        .read(syncStateDaoProvider)
+        .getValor(SyncStateDao.kBusquedasRecientes);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is List) {
+        state = <String>[for (final Object? x in decoded) if (x is String) x];
+      }
+    } catch (_) {
+      // valor corrupto: se ignora.
+    }
+  }
+
+  void registrar(String query) {
+    final String t = query.trim();
+    if (t.isEmpty) {
+      return;
+    }
+    final String tl = t.toLowerCase();
+    final List<String> nuevo = <String>[
+      t,
+      for (final String s in state)
+        if (s.toLowerCase() != tl) s,
+    ];
+    state = nuevo.length > _max ? nuevo.sublist(0, _max) : nuevo;
+    _persistir();
+  }
+
+  void borrar(String query) {
+    state = <String>[for (final String s in state) if (s != query) s];
+    _persistir();
+  }
+
+  void borrarTodo() {
+    state = const <String>[];
+    _persistir();
+  }
+
+  void _persistir() => ref
+      .read(syncStateDaoProvider)
+      .setValor(SyncStateDao.kBusquedasRecientes, jsonEncode(state));
+}
+
+final NotifierProvider<BusquedasRecientes, List<String>>
+    busquedasRecientesProvider =
+    NotifierProvider<BusquedasRecientes, List<String>>(BusquedasRecientes.new);
 
 /// Umbral por debajo del cual no se considera coincidencia (deja pasar typos y
 /// subsecuencias, pero no ruido).
@@ -194,14 +286,23 @@ final Provider<ResultadosBusqueda> resultadosBusquedaProvider =
     (PistaBusq p) => p.pista,
     limite: 8,
   );
+  final ({List<Playlist> items, double top}) playlists =
+      _rank<Playlist, PlaylistBusq>(
+    ref.watch(playlistIndexProvider),
+    (PlaylistBusq p) => p.puntuar(q),
+    (PlaylistBusq p) => p.playlist,
+    limite: 12,
+  );
   return ResultadosBusqueda(
     artistas: artistas.items,
     albums: albums.items,
     pistas: pistas.items,
+    playlists: playlists.items,
     orden: ordenarSecciones(
       artistas: artistas.top,
       albums: albums.top,
       pistas: pistas.top,
+      playlists: playlists.top,
     ),
   );
 });

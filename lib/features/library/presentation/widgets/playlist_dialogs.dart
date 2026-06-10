@@ -75,6 +75,84 @@ Future<String?> pedirNombrePlaylist(
   );
 }
 
+/// Diálogo para editar nombre + descripción de una playlist local. Devuelve el
+/// par (nombre, descripción) o null si se cancela.
+Future<({String nombre, String descripcion})?> editarDetallesPlaylist(
+  BuildContext context, {
+  required String nombreInicial,
+  String descripcionInicial = '',
+}) {
+  final TextEditingController nombreCtrl =
+      TextEditingController(text: nombreInicial);
+  final TextEditingController descCtrl =
+      TextEditingController(text: descripcionInicial);
+  final NbColors c = context.nb;
+  InputDecoration deco(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: c.text3),
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: c.line2),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: c.accent),
+        ),
+      );
+  return showDialog<({String nombre, String descripcion})>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        backgroundColor: c.bg2,
+        title: Text(
+          'Editar detalles',
+          style: TextStyle(
+            fontFamily: NbFonts.display,
+            fontWeight: FontWeight.w800,
+            color: c.text,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: nombreCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
+              decoration: deco('Nombre'),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: descCtrl,
+              maxLines: 3,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(color: c.text, fontFamily: NbFonts.ui),
+              decoration: deco('Descripción (opcional)'),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text('Cancelar', style: TextStyle(color: c.text2)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop((
+              nombre: nombreCtrl.text.trim(),
+              descripcion: descCtrl.text.trim(),
+            )),
+            style: FilledButton.styleFrom(
+              backgroundColor: c.accent,
+              foregroundColor: c.ink,
+            ),
+            child: const Text('Guardar'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 /// Crea una playlist local preguntando el nombre. Devuelve su id, o null.
 Future<int?> crearPlaylistLocal(BuildContext context, WidgetRef ref) async {
   final String? nombre = await pedirNombrePlaylist(context);

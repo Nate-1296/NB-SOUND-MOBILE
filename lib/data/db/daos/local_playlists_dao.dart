@@ -67,6 +67,16 @@ class LocalPlaylistsDao extends DatabaseAccessor<AppDatabase>
         ),
       );
 
+  /// Actualiza nombre y descripción (editar detalles de la playlist).
+  Future<void> actualizarDetalles(int id, String nombre, String? descripcion) =>
+      (update(playlistsLocales)..where((t) => t.id.equals(id))).write(
+        PlaylistsLocalesCompanion(
+          nombre: Value(nombre),
+          descripcion: Value(descripcion),
+          actualizadoEn: Value(DateTime.now().toUtc()),
+        ),
+      );
+
   Future<void> borrar(int id) async {
     await (delete(playlistLocalPistas)..where((t) => t.playlistId.equals(id)))
         .go();

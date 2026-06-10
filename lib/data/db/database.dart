@@ -54,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -76,6 +76,10 @@ class AppDatabase extends _$AppDatabase {
           // v4: playlists del PC guardadas/seguidas (estado propio del móvil).
           if (from < 4) {
             await m.createTable(playlistsGuardadas);
+          }
+          // v5: descripción opcional de las playlists locales.
+          if (from < 5) {
+            await m.addColumn(playlistsLocales, playlistsLocales.descripcion);
           }
         },
       );

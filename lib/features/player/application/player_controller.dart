@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -7,12 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart' show LoopMode;
 
 import '../../../core/di/providers.dart';
+import '../../../data/db/daos/catalog_dao.dart';
 import '../../../data/db/daos/downloads_dao.dart';
 import '../../../data/db/daos/history_dao.dart';
 import '../../../data/db/daos/sync_state_dao.dart';
 import '../../../data/db/database.dart';
 import '../../../core/security/secure_store.dart';
 import '../../karaoke/application/karaoke_providers.dart';
+import '../../library/application/library_providers.dart';
 import '../../offline/application/download_providers.dart';
 import '../../offline/data/download_repository.dart';
 import '../../offline/data/offline_store.dart';
@@ -33,6 +36,26 @@ List<int> ordenEfectivo(List<int> order, int length) {
   return <int>[for (int i = 0; i < length; i++) i];
 }
 
+/// Nuevo índice de la pista en curso tras mover un elemento de [oldIndex] a
+/// [newIndex] (semántica `removeAt`+`insert`). Pura y testeable.
+int indiceTrasMover(int current, int oldIndex, int newIndex) {
+  if (current == oldIndex) {
+    return newIndex;
+  }
+  int cur = current;
+  if (oldIndex < cur) {
+    cur -= 1;
+  }
+  if (newIndex <= cur) {
+    cur += 1;
+  }
+  return cur;
+}
+
+/// Nuevo índice de la pista en curso tras quitar el elemento en [index]. Pura.
+int indiceTrasQuitar(int current, int index) =>
+    index < current ? current - 1 : current;
+
 /// Estado observable del reproductor local. El mismo contrato lo cumplirá el
 /// controlador remoto (Spotify Connect) en la tanda de control remoto.
 class PlayerState {
@@ -46,6 +69,7 @@ class PlayerState {
     required this.repeat,
     this.order = const <int>[],
     this.karaoke = false,
+    this.velocidad = 1.0,
   });
 
   factory PlayerState.initial() => const PlayerState(
@@ -80,6 +104,9 @@ class PlayerState {
   /// pista en curso; se resetea al cambiar de pista.
   final bool karaoke;
 
+  /// Velocidad de reproducción (1.0 = normal).
+  final double velocidad;
+
   Pista? get current =>
       (index >= 0 && index < queue.length) ? queue[index] : null;
 
@@ -104,6 +131,7 @@ class PlayerState {
     RepeatMode? repeat,
     List<int>? order,
     bool? karaoke,
+    double? velocidad,
   }) {
     return PlayerState(
       queue: queue ?? this.queue,
@@ -115,6 +143,7 @@ class PlayerState {
       repeat: repeat ?? this.repeat,
       order: order ?? this.order,
       karaoke: karaoke ?? this.karaoke,
+      velocidad: velocidad ?? this.velocidad,
     );
   }
 }
@@ -142,7 +171,9 @@ class PlayerController extends Notifier<PlayerState> {
   late final DownloadsDao _downloads;
   late final DownloadRepository _downloadRepo;
   late final OfflineStore _store;
+  late final CatalogDao _catalog;
   int? _lastRecordedIndex;
+  bool _autoplayCargando = false;
 
   @override
   PlayerState build() {
@@ -151,6 +182,7 @@ class PlayerController extends Notifier<PlayerState> {
     _downloads = ref.watch(downloadsDaoProvider);
     _downloadRepo = ref.watch(downloadRepositoryProvider);
     _store = ref.read(offlineStoreProvider);
+    _catalog = ref.read(catalogDaoProvider);
     // Permite al handler resolver el instrumental de karaoke descargado (offline).
     _handler.stemFileFor = _store.stemFile;
     // Portada local para la notificación del sistema: la auth de las portadas
@@ -159,6 +191,28 @@ class PlayerController extends Notifier<PlayerState> {
       final File f = _store.coverFile(albumId);
       return f.existsSync() ? f : null;
     };
+    // Botón de favorito en la notificación/lockscreen: estado y toggle de la pista
+    // en curso. Se refresca cuando cambian los favoritos (o la pista).
+    _handler.esFavoritaActual = () {
+      final int? id = state.current?.id;
+      if (id == null) {
+        return false;
+      }
+      return (ref.read(favoritasIdsProvider).value ?? const <int>{}).contains(id);
+    };
+    _handler.onToggleFavorita = () {
+      final int? id = state.current?.id;
+      if (id == null) {
+        return;
+      }
+      final bool esFav =
+          (ref.read(favoritasIdsProvider).value ?? const <int>{}).contains(id);
+      ref.read(favoritesDaoProvider).setFavorita(id, !esFav);
+    };
+    ref.listen<AsyncValue<Set<int>>>(
+      favoritasIdsProvider,
+      (_, _) => _handler.refreshControls(),
+    );
 
     final List<StreamSubscription<Object?>> subs =
         <StreamSubscription<Object?>>[
@@ -185,6 +239,10 @@ class PlayerController extends Notifier<PlayerState> {
     );
     _handler.setRepeatMode(_repeatToService(repeat0));
 
+    // Restaura "lo que sonaba" (cola + índice + posición) en pausa, como Spotify.
+    // No bloquea el primer estado; se aplica cuando el catálogo resuelve las ids.
+    Future<void>(_restaurarSesion);
+
     return PlayerState.initial().copyWith(shuffle: shuffle0, repeat: repeat0);
   }
 
@@ -210,6 +268,7 @@ class PlayerController extends Notifier<PlayerState> {
     _lastRecordedIndex = null;
     await _handler.loadQueue(fuentes, index);
     _registrarHistorial(index);
+    guardarSesion();
   }
 
   /// Alterna el modo karaoke de la pista en curso: reproduce el instrumental
@@ -264,6 +323,88 @@ class PlayerController extends Notifier<PlayerState> {
 
   Future<void> reproducirPista(Pista pista) => reproducir(<Pista>[pista], 0);
 
+  // ── Manipulación de cola (estilo Spotify) ────────────────────────────────
+  /// Añade [pista] al final de la cola. Si no hay nada sonando, arranca esa pista.
+  Future<void> addToQueue(Pista pista) async {
+    if (state.queue.isEmpty) {
+      await reproducir(<Pista>[pista], 0);
+      return;
+    }
+    _handler.remote = ref.read(remoteMediaProvider);
+    final List<Pista> resueltas = await _resolverFuentes(<Pista>[pista]);
+    await _handler.addToQueueEnd(resueltas.first);
+    state = state.copyWith(queue: <Pista>[...state.queue, pista]);
+    guardarSesion();
+  }
+
+  /// Añade una colección entera al final de la cola. Si no hay nada sonando,
+  /// arranca la colección.
+  Future<void> encolarColeccion(List<Pista> pistas) async {
+    if (pistas.isEmpty) {
+      return;
+    }
+    if (state.queue.isEmpty) {
+      await reproducir(pistas, 0);
+      return;
+    }
+    _handler.remote = ref.read(remoteMediaProvider);
+    final List<Pista> resueltas = await _resolverFuentes(pistas);
+    for (final Pista p in resueltas) {
+      await _handler.addToQueueEnd(p);
+    }
+    state = state.copyWith(queue: <Pista>[...state.queue, ...pistas]);
+    guardarSesion();
+  }
+
+  /// Inserta [pista] justo después de la pista en curso ("reproducir a
+  /// continuación"). Si no hay nada sonando, arranca esa pista.
+  Future<void> reproducirACont(Pista pista) async {
+    if (state.queue.isEmpty) {
+      await reproducir(<Pista>[pista], 0);
+      return;
+    }
+    _handler.remote = ref.read(remoteMediaProvider);
+    final List<Pista> resueltas = await _resolverFuentes(<Pista>[pista]);
+    final int idx =
+        ((state.index < 0 ? -1 : state.index) + 1).clamp(0, state.queue.length);
+    await _handler.insertAt(idx, resueltas.first);
+    final List<Pista> q = List<Pista>.of(state.queue)..insert(idx, pista);
+    // La pista en curso no se desplaza (idx > index): el índice se mantiene.
+    state = state.copyWith(queue: q);
+    guardarSesion();
+  }
+
+  /// Quita de la cola la pista en [index] (no se permite quitar la pista en
+  /// curso, igual que Spotify).
+  Future<void> quitarDeCola(int index) async {
+    if (index < 0 || index >= state.queue.length || index == state.index) {
+      return;
+    }
+    await _handler.removeFromQueue(index);
+    final List<Pista> q = List<Pista>.of(state.queue)..removeAt(index);
+    state =
+        state.copyWith(queue: q, index: indiceTrasQuitar(state.index, index));
+    guardarSesion();
+  }
+
+  /// Reordena la cola moviendo la pista de [oldIndex] a [newIndex] (semántica
+  /// `removeAt`+`insert`, como `ReorderableListView.onReorderItem`).
+  Future<void> moverEnCola(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= state.queue.length || oldIndex == newIndex) {
+      return;
+    }
+    final List<Pista> q = List<Pista>.of(state.queue);
+    final Pista moved = q.removeAt(oldIndex);
+    final int dest = newIndex.clamp(0, q.length);
+    q.insert(dest, moved);
+    await _handler.moveInQueue(oldIndex, dest);
+    state = state.copyWith(
+      queue: q,
+      index: indiceTrasMover(state.index, oldIndex, dest),
+    );
+    guardarSesion();
+  }
+
   void alternarReproduccion() =>
       state.playing ? _handler.pause() : _handler.play();
 
@@ -285,6 +426,35 @@ class PlayerController extends Notifier<PlayerState> {
   void buscar(double progress) {
     final int ms = (state.duration.inMilliseconds * progress).round();
     _handler.seek(Duration(milliseconds: ms));
+  }
+
+  /// Salta a una posición concreta (p. ej. al tocar una línea de la letra).
+  void buscarPosicion(Duration pos) =>
+      _handler.seek(pos < Duration.zero ? Duration.zero : pos);
+
+  /// Fija la velocidad de reproducción (0.5–2.0).
+  Future<void> setVelocidad(double v) async {
+    final double speed = v.clamp(0.25, 3.0);
+    await _handler.setSpeed(speed);
+    state = state.copyWith(velocidad: speed);
+  }
+
+  /// Vacía la cola dejando solo la pista en curso ("borrar cola" de Spotify):
+  /// conserva la posición y el estado de reproducción.
+  Future<void> limpiarCola() async {
+    final Pista? actual = state.current;
+    if (actual == null || state.queue.length <= 1) {
+      return;
+    }
+    final Duration pos = state.position;
+    final bool sonaba = state.playing;
+    _handler.remote = ref.read(remoteMediaProvider);
+    final List<Pista> fuentes = await _resolverFuentes(<Pista>[actual]);
+    state = state.copyWith(queue: <Pista>[actual], index: 0);
+    _lastRecordedIndex = 0;
+    await _handler.loadQueue(fuentes, 0,
+        initialPosition: pos, autoPlay: sonaba);
+    guardarSesion();
   }
 
   Future<void> alternarAleatorio() async {
@@ -324,9 +494,51 @@ class PlayerController extends Notifier<PlayerState> {
     if (cambioPista && state.karaoke) {
       _handler.karaokeId = null;
       state = state.copyWith(playing: ps.playing, index: idx, karaoke: false);
+    } else {
+      state = state.copyWith(playing: ps.playing, index: idx);
+    }
+    if (cambioPista) {
+      guardarSesion();
+      _quizaAutoplay(idx);
+      _handler.refreshControls();
+    }
+  }
+
+  /// Autoplay: al llegar a la última pista de la cola sin repetición, la extiende
+  /// con "radio" local (temas relacionados) para no quedarse en silencio.
+  void _quizaAutoplay(int idx) {
+    if (state.repeat == RepeatMode.off && idx >= state.queue.length - 1) {
+      unawaited(_extenderAutoplay());
+    }
+  }
+
+  Future<void> _extenderAutoplay() async {
+    if (_autoplayCargando) {
       return;
     }
-    state = state.copyWith(playing: ps.playing, index: idx);
+    final Pista? semilla = state.current;
+    if (semilla == null) {
+      return;
+    }
+    final List<Pista> catalogo =
+        ref.read(pistasProvider).value ?? const <Pista>[];
+    if (catalogo.length <= state.queue.length) {
+      return;
+    }
+    _autoplayCargando = true;
+    try {
+      final Set<int> excluir = <int>{for (final Pista p in state.queue) p.id};
+      final List<Pista> extra = generarAutoplay(
+        semilla: semilla,
+        catalogo: catalogo,
+        excluir: excluir,
+      );
+      for (final Pista p in extra) {
+        await addToQueue(p);
+      }
+    } finally {
+      _autoplayCargando = false;
+    }
   }
 
   void _onPosition(Duration p) => state = state.copyWith(position: p);
@@ -384,6 +596,78 @@ class PlayerController extends Notifier<PlayerState> {
       }
     } catch (_) {
       // Materialización oportunista: si falla, la notificación queda sin portada.
+    }
+  }
+
+  // ── Persistencia de sesión (restaurar lo que sonaba al reabrir) ────────────
+  /// Serializa la cola (ids), el índice y la posición a kv. Se llama al cambiar
+  /// de pista/cola y al pasar a segundo plano (captura la posición real). No
+  /// persiste en cada tick de posición (evita escrituras constantes a SQLite).
+  void guardarSesion() {
+    final List<Pista> q = state.queue;
+    if (q.isEmpty) {
+      // Sin cola: limpia la sesión para no restaurar algo vacío.
+      _persistir(SyncStateDao.kSesion, '');
+      return;
+    }
+    _persistir(
+      SyncStateDao.kSesion,
+      jsonEncode(<String, dynamic>{
+        'ids': <int>[for (final Pista p in q) p.id],
+        'index': state.index,
+        'posMs': state.position.inMilliseconds,
+      }),
+    );
+  }
+
+  /// Restaura la sesión guardada **en pausa**. Resuelve las ids contra el catálogo
+  /// en una sola consulta; las pistas que ya no existan se omiten. Best-effort.
+  Future<void> _restaurarSesion() async {
+    if (state.queue.isNotEmpty) {
+      return;
+    }
+    final String? raw =
+        await ref.read(syncStateDaoProvider).getValor(SyncStateDao.kSesion);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return;
+      }
+      final List<int> ids = <int>[
+        for (final Object? x in (decoded['ids'] as List? ?? const <Object?>[]))
+          if (x is num) x.toInt(),
+      ];
+      if (ids.isEmpty) {
+        return;
+      }
+      final int index = (decoded['index'] as num?)?.toInt() ?? 0;
+      final int posMs = (decoded['posMs'] as num?)?.toInt() ?? 0;
+      final Map<int, Pista> porId = await _catalog.getPistasPorIds(ids);
+      final List<Pista> pistas = <Pista>[
+        for (final int id in ids)
+          if (porId[id] case final Pista p) p,
+      ];
+      if (pistas.isEmpty || state.queue.isNotEmpty) {
+        return;
+      }
+      final int idx = index.clamp(0, pistas.length - 1);
+      _handler.remote = ref.read(remoteMediaProvider);
+      _handler.karaokeId = null;
+      final List<Pista> fuentes = await _resolverFuentes(pistas);
+      state = state.copyWith(queue: pistas, index: idx, karaoke: false);
+      // No registrar historial al restaurar (no es una reproducción nueva).
+      _lastRecordedIndex = idx;
+      await _handler.loadQueue(
+        fuentes,
+        idx,
+        initialPosition: Duration(milliseconds: posMs < 0 ? 0 : posMs),
+        autoPlay: false,
+      );
+    } catch (_) {
+      // Sesión corrupta o incompatible: se ignora (arranca sin nada sonando).
     }
   }
 }

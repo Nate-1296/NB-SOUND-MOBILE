@@ -11,7 +11,8 @@ import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/section_head.dart';
 import '../../../../shared/widgets/top_bar.dart';
 import '../../../offline/application/image_resolver.dart';
-import '../../../player/application/player_controller.dart';
+import '../../../player/application/playback.dart';
+import '../../../profile/application/profile_providers.dart';
 import '../../application/library_providers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
@@ -26,6 +27,8 @@ class InicioScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final String saludo = saludoPorHora(DateTime.now().hour);
+    final String inicial = ref.watch(inicialPerfilProvider);
     final List<Pista> recientes =
         ref.watch(recientesProvider).value ?? const <Pista>[];
     final List<Pista> masEscuchadas =
@@ -52,9 +55,10 @@ class InicioScreen extends ConsumerWidget {
       return ListView(
         children: <Widget>[
           TopBar(
-            title: 'NB Sound',
+            title: saludo,
             onProfile: () => context.push('/profile'),
             large: true,
+            avatarInicial: inicial,
           ),
           _BibliotecaVacia(onSync: () => context.push('/sync')),
         ],
@@ -67,14 +71,36 @@ class InicioScreen extends ConsumerWidget {
     final int cols = context.gridCols;
     final int nExplora = cols * (context.isWide ? 3 : 2);
 
+    // Accesos rápidos (estilo Spotify): "Tus me gusta" + tus playlists, arriba.
+    final List<_QuickItem> quick = <_QuickItem>[
+      if (favoritas.isNotEmpty)
+        _QuickItem(
+          nombre: 'Tus me gusta',
+          corazon: true,
+          onTap: () => context.push('/favoritas'),
+        ),
+      for (final PlaylistLocal pl in playlistsLocales)
+        _QuickItem(
+          nombre: pl.nombre,
+          onTap: () => context.push('/playlist-local/${pl.id}'),
+        ),
+      for (final Playlist pl in playlistsGuardadas)
+        _QuickItem(
+          nombre: pl.nombre,
+          onTap: () => context.push('/playlist/${pl.id}'),
+        ),
+    ];
+
     return ListView(
       padding: const EdgeInsets.only(bottom: 28),
       children: <Widget>[
         TopBar(
-          title: 'NB Sound',
+          title: saludo,
           onProfile: () => context.push('/profile'),
           large: true,
+          avatarInicial: inicial,
         ),
+        if (quick.isNotEmpty) _QuickPicks(items: quick),
         if (recientes.isNotEmpty)
           _TrackRail(
             title: 'Vuelve a tu música',
@@ -86,7 +112,13 @@ class InicioScreen extends ConsumerWidget {
             pistas: masEscuchadas.take(nRail).toList(),
           ),
         if (favoritas.isNotEmpty) ...<Widget>[
-          const _Pad(child: SectionHead(title: 'Tus favoritas')),
+          _Pad(
+            child: SectionHead(
+              title: 'Tus favoritas',
+              actionLabel: 'Ver todas',
+              onAction: () => context.push('/favoritas'),
+            ),
+          ),
           _Pad(child: PistaList(pistas: favoritas.take(nFav).toList())),
           const SizedBox(height: 8),
         ],
@@ -162,8 +194,8 @@ class _TrackRail extends ConsumerWidget {
               final Pista p = pistas[i];
               return GestureDetector(
                 onTap: () => ref
-                    .read(playerControllerProvider.notifier)
-                    .reproducir(pistas, i),
+                    .read(playbackActionsProvider)
+                    .reproducirColeccion(pistas, i),
                 child: SizedBox(
                   width: w,
                   child: Column(
@@ -335,6 +367,95 @@ class _PlaylistRail extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+/// Un acceso rápido del Inicio (colección): "Tus me gusta" o una playlist.
+class _QuickItem {
+  const _QuickItem({
+    required this.nombre,
+    required this.onTap,
+    this.corazon = false,
+  });
+  final String nombre;
+  final VoidCallback onTap;
+  final bool corazon;
+}
+
+/// Rejilla compacta de accesos rápidos (2–3 columnas), estilo Spotify: tarjetas
+/// anchas con un cuadro + nombre, sin cargar mosaicos pesados en el Inicio.
+class _QuickPicks extends StatelessWidget {
+  const _QuickPicks({required this.items});
+  final List<_QuickItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    final int max = context.countFor(6);
+    final List<_QuickItem> visibles =
+        items.length > max ? items.sublist(0, max) : items;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+      child: GridView.count(
+        crossAxisCount: context.isWide ? 3 : 2,
+        childAspectRatio: 3.2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: <Widget>[
+          for (final _QuickItem it in visibles)
+            Material(
+              color: c.bg2,
+              borderRadius: BorderRadius.circular(10),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: it.onTap,
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: it.corazon ? null : c.bg3,
+                        gradient: it.corazon
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: <Color>[c.accent, c.ambient],
+                              )
+                            : null,
+                      ),
+                      child: Icon(
+                        it.corazon ? AppIcons.heartFilled : AppIcons.note,
+                        color: it.corazon ? c.ink : c.text2,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        it.nombre,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: NbFonts.ui,
+                          fontSize: 13 * context.uiScale,
+                          fontWeight: FontWeight.w700,
+                          height: 1.1,
+                          color: c.text,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

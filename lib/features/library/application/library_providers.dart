@@ -5,6 +5,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/providers.dart';
 import '../../../data/db/database.dart';
 
+/// Saludo según la hora del día (0–23), estilo Spotify ("Buenos días/tardes/
+/// noches"). Pura y testeable.
+String saludoPorHora(int hora) {
+  if (hora >= 5 && hora < 12) {
+    return 'Buenos días';
+  }
+  if (hora >= 12 && hora < 20) {
+    return 'Buenas tardes';
+  }
+  return 'Buenas noches';
+}
+
 /// Semilla de la sesión: un valor estable mientras la app está abierta y distinto
 /// en cada arranque. Permite que Inicio **rote** sus selecciones (novedades,
 /// clásicos, explora, artistas) en cada apertura sin que cambien al hacer scroll
@@ -112,6 +124,81 @@ final StreamProvider<Map<int, int>> conteoPorArtistaProvider =
     StreamProvider<Map<int, int>>((Ref ref) {
   return ref.watch(historyDaoProvider).watchConteoPorArtista();
 });
+
+/// Nº de reproducciones por pista (pistaId → conteo), para ordenar "Populares".
+final StreamProvider<Map<int, int>> conteoPorPistaProvider =
+    StreamProvider<Map<int, int>>((Ref ref) {
+  return ref.watch(historyDaoProvider).watchConteoPorPista();
+});
+
+/// Pistas de un artista ordenadas por **popularidad** (nº de reproducciones desc,
+/// desempate alfabético): la página de artista muestra primero lo más escuchado,
+/// como Spotify. Pura sobre las pistas + el mapa de conteos.
+List<Pista> pistasPorPopularidad(List<Pista> pistas, Map<int, int> conteo) {
+  final List<Pista> out = pistas.toList()
+    ..sort((Pista a, Pista b) {
+      final int c = (conteo[b.id] ?? 0).compareTo(conteo[a.id] ?? 0);
+      return c != 0
+          ? c
+          : a.titulo.toLowerCase().compareTo(b.titulo.toLowerCase());
+    });
+  return out;
+}
+
+/// "Radio" local para el autoplay: cuando la cola se acaba, genera [n] pistas
+/// relacionadas con [semilla] de la biblioteca, sin repetir [excluir] ni la
+/// semilla. Prioriza mismo artista → mismo género → resto del catálogo, barajando
+/// dentro de cada grupo (estable por [seed]). Pura y testeable.
+List<Pista> generarAutoplay({
+  required Pista semilla,
+  required List<Pista> catalogo,
+  required Set<int> excluir,
+  int n = 10,
+  int? seed,
+}) {
+  if (n <= 0 || catalogo.isEmpty) {
+    return const <Pista>[];
+  }
+  final Random rnd = Random(seed ?? semilla.id);
+  bool elegible(Pista p) => p.id != semilla.id && !excluir.contains(p.id);
+  final List<Pista> mismoArtista = <Pista>[
+    for (final Pista p in catalogo)
+      if (elegible(p) &&
+          semilla.artistaId != null &&
+          p.artistaId == semilla.artistaId)
+        p,
+  ]..shuffle(rnd);
+  final List<Pista> mismoGenero = <Pista>[
+    for (final Pista p in catalogo)
+      if (elegible(p) &&
+          semilla.genero != null &&
+          (semilla.genero?.isNotEmpty ?? false) &&
+          p.genero == semilla.genero)
+        p,
+  ]..shuffle(rnd);
+  final List<Pista> resto = <Pista>[
+    for (final Pista p in catalogo)
+      if (elegible(p)) p,
+  ]..shuffle(rnd);
+
+  final List<Pista> out = <Pista>[];
+  final Set<int> vistos = <int>{};
+  void agregar(List<Pista> src) {
+    for (final Pista p in src) {
+      if (out.length >= n) {
+        return;
+      }
+      if (vistos.add(p.id)) {
+        out.add(p);
+      }
+    }
+  }
+
+  agregar(mismoArtista);
+  agregar(mismoGenero);
+  agregar(resto);
+  return out;
+}
 
 /// Artistas más escuchados del usuario, rotando por sesión entre los favoritos
 /// (para que "Artistas para ti" varíe en cada apertura). Si aún no hay historial,

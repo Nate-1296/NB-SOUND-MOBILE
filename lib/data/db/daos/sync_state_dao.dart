@@ -30,6 +30,13 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
   /// Modo de repetición del reproductor (estado global: `off`/`one`/`all`).
   static const String kRepeticion = 'repeticion';
 
+  /// Sesión del reproductor persistida (JSON: ids de la cola + índice + posición
+  /// en ms), para restaurar "lo que sonaba" al reabrir la app, como Spotify.
+  static const String kSesion = 'sesion_repro';
+
+  /// Búsquedas recientes (JSON: lista de textos, recientes primero).
+  static const String kBusquedasRecientes = 'busquedas_recientes';
+
   Stream<String?> watchValor(String clave) =>
       (select(syncEstado)..where((t) => t.clave.equals(clave)))
           .watchSingleOrNull()

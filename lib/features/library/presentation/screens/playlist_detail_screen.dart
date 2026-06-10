@@ -12,7 +12,7 @@ import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
-import '../../../player/application/player_controller.dart';
+import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_covers.dart';
 import '../widgets/pista_list.dart';
@@ -50,7 +50,16 @@ class PlaylistDetailScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Column(
                 children: <Widget>[
-                  SubHeader(title: playlist?.nombre ?? 'Playlist'),
+                  SubHeader(
+                    title: playlist?.nombre ?? 'Playlist',
+                    trailing: IconButton(
+                      tooltip: 'Más opciones',
+                      icon: Icon(AppIcons.moreV, color: c.text2),
+                      onPressed: pistas.isEmpty
+                          ? null
+                          : () => mostrarMenuColeccion(context, ref, pistas),
+                    ),
+                  ),
                   Center(
                     child: covers.length >= 4
                         ? CoverMosaic(images: covers, size: 200, radius: 18)
@@ -98,8 +107,8 @@ class PlaylistDetailScreen extends ConsumerWidget {
                               onPressed: pistas.isEmpty
                                   ? null
                                   : () => ref
-                                      .read(playerControllerProvider.notifier)
-                                      .reproducir(pistas, 0),
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccion(pistas, 0),
                               style: FilledButton.styleFrom(
                                 backgroundColor: c.accent,
                                 foregroundColor: c.ink,
@@ -119,7 +128,17 @@ class PlaylistDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Reproducir aleatorio',
+                              onPressed: pistas.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccionAleatorio(pistas),
+                              icon: Icon(AppIcons.shuffle, color: c.text2),
+                            ),
+                            const SizedBox(width: 4),
                             _GuardarPlaylistButton(
                               playlistId: playlistId,
                               pistas: pistas,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -56,6 +57,7 @@ class EqEstado {
     this.maxDb = 15,
     this.normalizar = false,
     this.omitirSilencios = false,
+    this.presetsGuardados = const <String, List<double>>{},
   });
 
   /// Hay ecualizador en esta plataforma (Android con reproductor real).
@@ -73,6 +75,9 @@ class EqEstado {
   final bool normalizar;
   final bool omitirSilencios;
 
+  /// Presets que el usuario ha guardado (nombre → ganancias por banda).
+  final Map<String, List<double>> presetsGuardados;
+
   EqEstado copyWith({
     bool? soportado,
     bool? bandasListas,
@@ -84,6 +89,7 @@ class EqEstado {
     double? maxDb,
     bool? normalizar,
     bool? omitirSilencios,
+    Map<String, List<double>>? presetsGuardados,
   }) {
     return EqEstado(
       soportado: soportado ?? this.soportado,
@@ -96,6 +102,7 @@ class EqEstado {
       maxDb: maxDb ?? this.maxDb,
       normalizar: normalizar ?? this.normalizar,
       omitirSilencios: omitirSilencios ?? this.omitirSilencios,
+      presetsGuardados: presetsGuardados ?? this.presetsGuardados,
     );
   }
 }
@@ -111,6 +118,7 @@ const String _kPreset = 'eq_preset';
 const String _kGains = 'eq_gains';
 const String _kNorm = 'eq_norm';
 const String _kSkip = 'eq_skip';
+const String _kCustom = 'eq_custom';
 
 /// Remuestrea una curva de preset al número de bandas [n] (interpolación lineal),
 /// acotando a [minDb, maxDb]. Pura.
@@ -221,7 +229,65 @@ class EqualizerController extends Notifier<EqEstado> {
       ganancias: ganancias,
       minDb: minDb,
       maxDb: maxDb,
+      presetsGuardados: await _cargarPresetsCustom(),
     );
+  }
+
+  Future<Map<String, List<double>>> _cargarPresetsCustom() async {
+    final String? raw =
+        await ref.read(syncStateDaoProvider).getValor(_kCustom);
+    if (raw == null || raw.isEmpty) {
+      return const <String, List<double>>{};
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return <String, List<double>>{
+          for (final MapEntry<Object?, Object?> e in decoded.entries)
+            if (e.value is List)
+              e.key.toString(): <double>[
+                for (final Object? x in (e.value as List))
+                  if (x is num) x.toDouble(),
+              ],
+        };
+      }
+    } catch (_) {
+      // valor corrupto: se ignora.
+    }
+    return const <String, List<double>>{};
+  }
+
+  /// Guarda las ganancias actuales como un preset con [nombre].
+  void guardarPreset(String nombre) {
+    final String n = nombre.trim();
+    if (n.isEmpty || state.ganancias.isEmpty) {
+      return;
+    }
+    final Map<String, List<double>> mapa =
+        Map<String, List<double>>.of(state.presetsGuardados);
+    mapa[n] = List<double>.of(state.ganancias);
+    state = state.copyWith(presetsGuardados: mapa);
+    _persistir(_kCustom, jsonEncode(mapa));
+  }
+
+  /// Aplica un preset guardado por el usuario.
+  Future<void> aplicarPresetGuardado(String nombre) async {
+    final List<double>? g = state.presetsGuardados[nombre];
+    if (g == null) {
+      return;
+    }
+    await _aplicarGanancias(g);
+    state = state.copyWith(preset: EqPreset.custom, ganancias: g);
+    _persistir(_kPreset, EqPreset.custom.name);
+    _persistir(_kGains, g.map((double v) => v.toStringAsFixed(1)).join(','));
+  }
+
+  /// Borra un preset guardado.
+  void borrarPresetGuardado(String nombre) {
+    final Map<String, List<double>> mapa =
+        Map<String, List<double>>.of(state.presetsGuardados)..remove(nombre);
+    state = state.copyWith(presetsGuardados: mapa);
+    _persistir(_kCustom, jsonEncode(mapa));
   }
 
   Future<void> _aplicarGanancias(List<double> ganancias) async {

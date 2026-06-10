@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/section_head.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/image_resolver.dart';
+import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
@@ -26,9 +27,13 @@ class ArtistDetailScreen extends ConsumerWidget {
     final List<Album> albums =
         ref.watch(albumsDeArtistaProvider(artistId)).value ??
             const <Album>[];
-    final List<Pista> pistas =
+    final List<Pista> pistasRaw =
         ref.watch(pistasDeArtistaProvider(artistId)).value ??
             const <Pista>[];
+    // "Populares": las más reproducidas primero (como Spotify), no alfabético.
+    final Map<int, int> conteo =
+        ref.watch(conteoPorPistaProvider).value ?? const <int, int>{};
+    final List<Pista> pistas = pistasPorPopularidad(pistasRaw, conteo);
 
     final ImageProvider? img = ref.watch(coverResolverProvider).imageFor(
           artista?.imagenPath,
@@ -92,6 +97,43 @@ class ArtistDetailScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (pistas.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        FilledButton.icon(
+                          onPressed: () => ref
+                              .read(playbackActionsProvider)
+                              .reproducirColeccion(pistas, 0),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: c.accent,
+                            foregroundColor: c.ink,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 28, vertical: 12),
+                            shape: const StadiumBorder(),
+                          ),
+                          icon: Icon(AppIcons.play, color: c.ink, size: 22),
+                          label: Text(
+                            'Reproducir',
+                            style: TextStyle(
+                              fontFamily: NbFonts.ui,
+                              fontWeight: FontWeight.w700,
+                              color: c.ink,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          tooltip: 'Reproducir aleatorio',
+                          onPressed: () => ref
+                              .read(playbackActionsProvider)
+                              .reproducirColeccionAleatorio(pistas),
+                          icon: Icon(AppIcons.shuffle, color: c.text2),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 22),
                   if (albums.isNotEmpty) ...<Widget>[
                     const Padding(
@@ -113,7 +155,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                   ],
                   const Padding(
                     padding: EdgeInsets.fromLTRB(18, 0, 18, 0),
-                    child: SectionHead(title: 'Pistas'),
+                    child: SectionHead(title: 'Populares'),
                   ),
                 ],
               ),

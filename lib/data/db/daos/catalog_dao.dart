@@ -69,6 +69,17 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   Future<Pista?> getPista(int id) =>
       (select(pistas)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  /// Pistas por una lista de ids, en una sola consulta (id → Pista). El orden de
+  /// la cola lo reconstruye el llamador; las ids inexistentes simplemente faltan.
+  Future<Map<int, Pista>> getPistasPorIds(List<int> ids) async {
+    if (ids.isEmpty) {
+      return const <int, Pista>{};
+    }
+    final List<Pista> filas =
+        await (select(pistas)..where((t) => t.id.isIn(ids))).get();
+    return <int, Pista>{for (final Pista p in filas) p.id: p};
+  }
+
   Stream<List<Pista>> watchPistasDeAlbum(int albumId) =>
       (select(pistas)
             ..where((t) => t.albumId.equals(albumId))
@@ -105,19 +116,6 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
     return query
         .watch()
         .map((rows) => rows.map((r) => r.readTable(pistas)).toList());
-  }
-
-  /// Búsqueda local simple (case-insensitive) en pistas por título o artista.
-  Stream<List<Pista>> buscarPistas(String query) {
-    final String like = '%${query.toLowerCase()}%';
-    return (select(pistas)
-          ..where(
-            (t) =>
-                t.titulo.lower().like(like) |
-                t.artistaNombre.lower().like(like),
-          )
-          ..limit(50))
-        .watch();
   }
 
   Future<int> contarPistas() async {

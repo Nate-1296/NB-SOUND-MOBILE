@@ -7,6 +7,7 @@ import '../../features/library/presentation/screens/album_detail_screen.dart';
 import '../../features/library/presentation/screens/artist_detail_screen.dart';
 import '../../features/library/presentation/screens/biblioteca_screen.dart';
 import '../../features/library/presentation/screens/buscar_screen.dart';
+import '../../features/library/presentation/screens/favoritas_screen.dart';
 import '../../features/library/presentation/screens/inicio_screen.dart';
 import '../../features/library/presentation/screens/local_playlist_detail_screen.dart';
 import '../../features/library/presentation/screens/playlist_detail_screen.dart';
@@ -120,6 +121,11 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
             path: '/playlist-local/:id',
             builder: (BuildContext context, GoRouterState state) =>
                 LocalPlaylistDetailScreen(playlistId: _intParam(state, 'id')),
+          ),
+          GoRoute(
+            path: '/favoritas',
+            builder: (BuildContext context, GoRouterState state) =>
+                const FavoritasScreen(),
           ),
         ],
       ),

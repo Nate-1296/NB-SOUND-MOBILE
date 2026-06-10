@@ -365,3 +365,69 @@ Ajustes pedidos sobre las fases anteriores (todo `analyze` limpio + tests):
 `search_orden_test` (orden de secciones), `rotacion_test` (`rotarVentana`),
 `playlist_pins_test` (tokens/`conAncladasArriba`/máximo), `equalizer_test`
 (`gananciasDePreset`), y `widget_test` actualizado a los 63 temas + migración de claves.
+
+---
+
+## Fase 5 — Paridad Spotify · bloque crítico (🔴) ✅ (code-complete 2026-06-10)
+
+> Tras una auditoría de comportamiento contra Spotify/Apple/Tidal/Deezer, se
+> cierran los cuatro defectos que más rompían el modelo "tipo Spotify". `flutter
+> analyze` limpio + **158 tests** (+10) + APK arm64 40.3 MB. Sin cambios de
+> esquema Drift, **sin tocar el escritorio**. Verificación visual en dispositivo
+> pendiente. Plan: `~/.claude/plans/tender-floating-hartmanis.md`.
+
+### Qué se hizo
+- **5A · Fachada de reproducción unificada + enrutado Connect.** Nuevos métodos en
+  `PlaybackActions` ([playback.dart](../lib/features/player/application/playback.dart)):
+  `reproducirColeccion`, `reproducirColeccionAleatorio`, `reproducirPistaUnica`.
+  Deciden destino: en local cargan la cola en el teléfono; con Connect activo la
+  mandan al PC con `reproducir_pista(actual)` + `encolar_pista(resto)` (función
+  pura `planColeccionRemota`, encola `index+1..fin`). **Migrados todos los
+  call-sites** que llamaban directo a `playerController.reproducir` (álbum,
+  playlist, playlist local, inicio, filas de pista, menú "Reproducir"). Arregla el
+  bug de que, en "Mi PC", Reproducir sonaba en el teléfono.
+- **5B · Cola manipulable.** Handler
+  ([nb_audio_handler.dart](../lib/features/player/application/nb_audio_handler.dart)):
+  `addToQueueEnd`/`insertAt`/`removeFromQueue`/`moveInQueue` sobre la API de
+  just_audio 0.10.5 (`addAudioSource`/`insertAudioSource`/`removeAudioSourceAt`/
+  `moveAudioSource`), manteniendo `queue` de audio_service en sync. Controlador
+  ([player_controller.dart](../lib/features/player/application/player_controller.dart)):
+  `addToQueue`/`reproducirACont`/`quitarDeCola`/`moverEnCola` (resuelven la fuente
+  + ajustan `state.queue`/`index` con las puras `indiceTrasMover`/`indiceTrasQuitar`;
+  si la cola está vacía, arrancan la pista). Menú de pista: "Reproducir a
+  continuación" + "Añadir a la cola" (local). Vista Cola del reproductor: ahora
+  **reordenable** (arrastre `onReorderItem`) sin aleatorio, y **quitar** pistas
+  (× por fila, salvo la actual).
+- **5C · Reproductor: navegación + menú "⋮".** "REPRODUCIENDO DESDE [álbum]" →
+  abre el álbum; nombre del artista → abre el artista (ambos cierran el player
+  primero, `_irA` captura el router antes del pop). Nuevo botón **⋮** en la
+  cabecera que abre el menú de pista, ampliado con "Ir al álbum" / "Ir al artista".
+- **5D · Acceso a Connect fuera del reproductor.** Prop `onCast` en el mini-player
+  ([mini_player.dart](../lib/shared/widgets/mini_player.dart)); `MiniPlayerBar` lo
+  muestra cuando `conexionPcProvider == conectado`. Nuevo tile "Reproducir en…" en
+  General ([general_screen.dart](../lib/features/profile/presentation/general_screen.dart));
+  "Sincronizar con PC" pasa a usar el icono `sync`.
+
+### Cambios/tradeoffs y caveats
+- **Routing Connect = solo móvil** (decisión del usuario): no se añadió comando al
+  PC. El orden/estado final de la cola del PC depende de cómo trate su cola al
+  recibir `reproducir_pista`; **validar contra el PC real**.
+- **"Reproducir a continuación" con aleatorio activo** inserta en la secuencia
+  subyacente en `index+1`, no en el orden barajado efectivo (v1).
+- **Reordenar la cola solo sin aleatorio** (just_audio no expone reordenar la
+  baraja); con aleatorio activo se ve el orden efectivo y solo se permite saltar/
+  quitar (mapeando al índice real).
+- **"Play next" no existe en remoto** (sin comando PC): en remoto solo "añadir a
+  la cola del PC".
+- **Navegar desde el reproductor cierra el reproductor** (no apila el detalle
+  sobre el player).
+
+### Tests añadidos (158 totales, +10)
+`cola_test`: `planColeccionRemota` (enrutado/encolado), `indiceTrasMover`,
+`indiceTrasQuitar`.
+
+### Faltante / no abordado (siguiente fase 🟡)
+Cerrar reproductor con swipe-down; tocar línea de letra = seek; transferencia de
+vuelta PC→móvil; playlists en búsqueda + búsquedas recientes; "Tus me gusta" como
+colección; menú ⋮ en playlist local + aleatorio en playlists; autoplay/radio +
+sleep timer; separación "A continuación" vs "Siguiente desde contexto".

@@ -94,6 +94,19 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
     });
   }
 
+  /// Nº de reproducciones por pista (pistaId → conteo), para ordenar "Populares"
+  /// (p. ej. en la página de artista). Reactivo.
+  Stream<Map<int, int>> watchConteoPorPista() {
+    final Expression<int> conteo = historialLocal.id.count();
+    final query = selectOnly(historialLocal)
+      ..addColumns(<Expression<Object>>[historialLocal.pistaId, conteo])
+      ..groupBy(<Expression<Object>>[historialLocal.pistaId]);
+    return query.watch().map((List<TypedResult> rows) => <int, int>{
+          for (final TypedResult row in rows)
+            row.read(historialLocal.pistaId)!: row.read(conteo) ?? 0,
+        });
+  }
+
   /// Entradas aún no subidas al PC (para la tanda de sync).
   Future<List<HistorialEntry>> noSubidos() =>
       (select(historialLocal)..where((t) => t.subido.equals(false))).get();

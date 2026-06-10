@@ -11,9 +11,10 @@ import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
-import '../../../player/application/player_controller.dart';
+import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_covers.dart';
+import '../widgets/pista_list.dart';
 import '../widgets/playlist_dialogs.dart';
 
 /// Rojo de acción destructiva (convencional, independiente del tema).
@@ -56,15 +57,20 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
               onRenombrar: playlist == null
                   ? null
                   : () async {
-                      final String? nombre = await pedirNombrePlaylist(
+                      final ({String nombre, String descripcion})? r =
+                          await editarDetallesPlaylist(
                         context,
-                        titulo: 'Renombrar playlist',
-                        inicial: playlist.nombre,
+                        nombreInicial: playlist.nombre,
+                        descripcionInicial: playlist.descripcion ?? '',
                       );
-                      if (nombre != null && nombre.isNotEmpty) {
+                      if (r != null && r.nombre.isNotEmpty) {
                         await ref
                             .read(localPlaylistsDaoProvider)
-                            .renombrar(playlistId, nombre);
+                            .actualizarDetalles(
+                              playlistId,
+                              r.nombre,
+                              r.descripcion.isEmpty ? null : r.descripcion,
+                            );
                       }
                     },
               onEliminar: () async {
@@ -78,6 +84,8 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                   }
                 }
               },
+              onEncolar: () =>
+                  ref.read(playbackActionsProvider).encolarColeccion(pistas),
             ),
             Expanded(
               child: ListView(
@@ -124,6 +132,18 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                             color: c.text2,
                           ),
                         ),
+                        if ((playlist?.descripcion ?? '').isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            playlist!.descripcion!,
+                            style: TextStyle(
+                              fontFamily: NbFonts.ui,
+                              fontSize: 13.5,
+                              height: 1.4,
+                              color: c.text3,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Row(
                           children: <Widget>[
@@ -131,8 +151,8 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                               onPressed: pistas.isEmpty
                                   ? null
                                   : () => ref
-                                      .read(playerControllerProvider.notifier)
-                                      .reproducir(pistas, 0),
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccion(pistas, 0),
                               style: FilledButton.styleFrom(
                                 backgroundColor: c.accent,
                                 foregroundColor: c.ink,
@@ -150,7 +170,17 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Reproducir aleatorio',
+                              onPressed: pistas.isEmpty
+                                  ? null
+                                  : () => ref
+                                      .read(playbackActionsProvider)
+                                      .reproducirColeccionAleatorio(pistas),
+                              icon: Icon(AppIcons.shuffle, color: c.text2),
+                            ),
+                            const SizedBox(width: 4),
                             OutlinedButton.icon(
                               onPressed: () => agregarPistasAPlaylist(
                                   context, ref, playlistId),
@@ -215,11 +245,20 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                           pista: p,
                           resolver: resolver,
                           onPlay: () => ref
-                              .read(playerControllerProvider.notifier)
-                              .reproducir(pistas, i),
-                          onRemove: () => ref
-                              .read(localPlaylistsDaoProvider)
-                              .quitarPista(playlistId, p.id),
+                              .read(playbackActionsProvider)
+                              .reproducirColeccion(pistas, i),
+                          onMore: () => mostrarMenuPista(
+                            context,
+                            ref,
+                            p,
+                            accionRemover: (
+                              label: 'Quitar de la playlist',
+                              icon: AppIcons.close,
+                              onTap: () => ref
+                                  .read(localPlaylistsDaoProvider)
+                                  .quitarPista(playlistId, p.id),
+                            ),
+                          ),
                         );
                       },
                     ),
@@ -267,11 +306,13 @@ class _Header extends StatelessWidget {
     required this.titulo,
     required this.onRenombrar,
     required this.onEliminar,
+    required this.onEncolar,
   });
 
   final String titulo;
   final VoidCallback? onRenombrar;
   final VoidCallback onEliminar;
+  final VoidCallback onEncolar;
 
   @override
   Widget build(BuildContext context) {
@@ -305,12 +346,18 @@ class _Header extends StatelessWidget {
                 onRenombrar?.call();
               } else if (v == 'eliminar') {
                 onEliminar();
+              } else if (v == 'cola') {
+                onEncolar();
               }
             },
             itemBuilder: (BuildContext _) => <PopupMenuEntry<String>>[
               PopupMenuItem<String>(
+                value: 'cola',
+                child: Text('Añadir a la cola', style: TextStyle(color: c.text)),
+              ),
+              PopupMenuItem<String>(
                 value: 'renombrar',
-                child: Text('Renombrar', style: TextStyle(color: c.text)),
+                child: Text('Editar detalles', style: TextStyle(color: c.text)),
               ),
               const PopupMenuItem<String>(
                 value: 'eliminar',
@@ -330,13 +377,13 @@ class _TrackRow extends StatelessWidget {
     required this.pista,
     required this.resolver,
     required this.onPlay,
-    required this.onRemove,
+    required this.onMore,
   });
 
   final Pista pista;
   final CoverResolver resolver;
   final VoidCallback onPlay;
-  final VoidCallback onRemove;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -379,10 +426,10 @@ class _TrackRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           IconButton(
-            tooltip: 'Quitar',
+            tooltip: 'Más opciones',
             visualDensity: VisualDensity.compact,
-            onPressed: onRemove,
-            icon: Icon(AppIcons.close, size: 18, color: c.text3),
+            onPressed: onMore,
+            icon: Icon(AppIcons.moreV, size: 18, color: c.text3),
           ),
           Icon(AppIcons.dragHandle, size: 20, color: c.text3),
         ],

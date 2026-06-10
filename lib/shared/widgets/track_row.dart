@@ -24,6 +24,8 @@ class TrackRow extends StatelessWidget {
     this.downloaded = false,
     this.onTap,
     this.onMore,
+    this.onSwipeQueue,
+    this.swipeKey,
   });
 
   final String title;
@@ -44,12 +46,17 @@ class TrackRow extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onMore;
 
+  /// Acción al deslizar la fila hacia la derecha (estilo Spotify: añadir a la
+  /// cola). Requiere también [swipeKey] (única) para el `Dismissible`.
+  final VoidCallback? onSwipeQueue;
+  final Key? swipeKey;
+
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
     final Color titleColor = playing ? c.accent : c.text;
 
-    return InkWell(
+    final Widget fila = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
@@ -147,6 +154,40 @@ class TrackRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onSwipeQueue == null || swipeKey == null) {
+      return fila;
+    }
+    return Dismissible(
+      key: swipeKey!,
+      direction: DismissDirection.startToEnd,
+      // No elimina la fila: ejecuta la acción y vuelve a su sitio (swipe-action).
+      confirmDismiss: (DismissDirection _) async {
+        onSwipeQueue!();
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 22),
+        color: c.soft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(AppIcons.queue, color: c.accent, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'A la cola',
+              style: TextStyle(
+                fontFamily: NbFonts.ui,
+                fontWeight: FontWeight.w700,
+                color: c.accent,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: fila,
     );
   }
 }

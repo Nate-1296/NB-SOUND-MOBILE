@@ -105,6 +105,7 @@ class PlaylistPistas extends Table {
 class PlaylistsLocales extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get nombre => text()();
+  TextColumn get descripcion => text().nullable()();
   DateTimeColumn get creadoEn => dateTime()();
   DateTimeColumn get actualizadoEn => dateTime()();
 }

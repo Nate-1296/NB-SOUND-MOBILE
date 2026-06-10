@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/chip_pill.dart';
 import '../../../../shared/widgets/top_bar.dart';
 import '../../../offline/application/download_providers.dart';
+import '../../../profile/application/profile_providers.dart';
 import '../../application/library_filters.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/library_filter_bar.dart';
@@ -36,6 +37,7 @@ class _BibliotecaScreenState extends ConsumerState<BibliotecaScreen> {
         TopBar(
           title: 'Tu biblioteca',
           onProfile: () => context.push('/profile'),
+          avatarInicial: ref.watch(inicialPerfilProvider),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
@@ -363,7 +365,6 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
                         )
                       : PistaListView(
                           pistas: pistas,
-                          comoColeccion: false,
                           padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
                         ),
                 ),

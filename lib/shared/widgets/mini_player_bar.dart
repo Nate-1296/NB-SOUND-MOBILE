@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/offline/application/image_resolver.dart';
 import '../../features/player/application/playback.dart';
+import '../../features/remote_control/presentation/destination_sheet.dart';
+import '../../features/sync/application/conexion_provider.dart';
 import 'mini_player.dart';
 
 /// Mini-reproductor ya cableado a los providers de "lo que suena". Se reutiliza
@@ -25,6 +27,11 @@ class MiniPlayerBar extends ConsumerWidget {
     if (!np.hasTrack) {
       return const SizedBox.shrink();
     }
+    // El icono cast aparece cuando hay un PC conectado (mismo criterio que el
+    // reproductor): permite abrir el selector de dispositivos sin entrar al
+    // reproductor a pantalla completa.
+    final bool puedeCast =
+        ref.watch(conexionPcProvider) == ConexionEstado.conectado;
     final Widget bar = Padding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
       child: MiniPlayer(
@@ -40,6 +47,7 @@ class MiniPlayerBar extends ConsumerWidget {
         onToggle: () => ref.read(playbackActionsProvider).togglePlay(),
         onPrev: () => ref.read(playbackActionsProvider).prev(),
         onNext: () => ref.read(playbackActionsProvider).next(),
+        onCast: puedeCast ? () => mostrarSelectorDestino(context, ref) : null,
       ),
     );
     return safeAreaBottom ? SafeArea(top: false, child: bar) : bar;

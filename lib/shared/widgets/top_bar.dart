@@ -14,6 +14,7 @@ class TopBar extends StatelessWidget {
     this.onProfile,
     this.trailing,
     this.large = false,
+    this.avatarInicial = 'N',
   });
 
   final String title;
@@ -21,6 +22,9 @@ class TopBar extends StatelessWidget {
   final VoidCallback? onProfile;
   final Widget? trailing;
   final bool large;
+
+  /// Inicial mostrada en el avatar de perfil (la del nombre real si hay perfil).
+  final String avatarInicial;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +48,7 @@ class TopBar extends StatelessWidget {
                 border: Border.all(color: c.line2, width: 1.5),
               ),
               child: Text(
-                'N',
+                avatarInicial,
                 style: TextStyle(
                   fontFamily: NbFonts.display,
                   fontSize: 15 * scale,

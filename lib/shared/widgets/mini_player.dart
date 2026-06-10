@@ -22,6 +22,7 @@ class MiniPlayer extends StatelessWidget {
     this.onToggle,
     this.onPrev,
     this.onNext,
+    this.onCast,
   });
 
   final String title;
@@ -37,109 +38,137 @@ class MiniPlayer extends StatelessWidget {
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
 
+  /// Abre el selector de dispositivos (Connect). Si es null, no se muestra el
+  /// icono cast (p. ej. sin PC conectado).
+  final VoidCallback? onCast;
+
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: c.bg2.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: c.line2),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x73000000),
-                blurRadius: 30,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: onTap,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      children: <Widget>[
-                        Cover(
-                          image: cover,
-                          gradient: coverGradient,
-                          size: 44,
-                          radius: 9,
-                          shadow: false,
-                        ),
-                        const SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: NbFonts.ui,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: c.text,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: NbFonts.ui,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.text2,
-                                ),
-                              ),
-                            ],
+    return GestureDetector(
+      // Gestos estilo Spotify: deslizar horizontal cambia de canción; deslizar
+      // hacia arriba abre el reproductor a pantalla completa.
+      onHorizontalDragEnd: (DragEndDetails d) {
+        final double v = d.primaryVelocity ?? 0;
+        if (v < -250) {
+          onNext?.call();
+        } else if (v > 250) {
+          onPrev?.call();
+        }
+      },
+      onVerticalDragEnd: (DragEndDetails d) {
+        if ((d.primaryVelocity ?? 0) < -250) {
+          onTap?.call();
+        }
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              color: c.bg2.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: c.line2),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x73000000),
+                  blurRadius: 30,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: onTap,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: <Widget>[
+                          Cover(
+                            image: cover,
+                            gradient: coverGradient,
+                            size: 44,
+                            radius: 9,
+                            shadow: false,
                           ),
-                        ),
-                        const SizedBox(width: 2),
-                        _MiniControl(
-                          icon: AppIcons.prev,
-                          size: 18,
-                          color: c.text2,
-                          onPressed: onPrev,
-                        ),
-                        _MiniControl(
-                          icon: playing ? AppIcons.pause : AppIcons.play,
-                          size: 20,
-                          color: c.text,
-                          onPressed: onToggle,
-                        ),
-                        _MiniControl(
-                          icon: AppIcons.next,
-                          size: 18,
-                          color: c.text2,
-                          onPressed: onNext,
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    height: 2.5,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: progress.clamp(0.0, 1.0),
-                        child: Container(color: c.accent),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: NbFonts.ui,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: c.text,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: NbFonts.ui,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.text2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          if (onCast != null)
+                            _MiniControl(
+                              icon: AppIcons.cast,
+                              size: 18,
+                              color: c.text2,
+                              onPressed: onCast,
+                            ),
+                          _MiniControl(
+                            icon: AppIcons.prev,
+                            size: 18,
+                            color: c.text2,
+                            onPressed: onPrev,
+                          ),
+                          _MiniControl(
+                            icon: playing ? AppIcons.pause : AppIcons.play,
+                            size: 20,
+                            color: c.text,
+                            onPressed: onToggle,
+                          ),
+                          _MiniControl(
+                            icon: AppIcons.next,
+                            size: 18,
+                            color: c.text2,
+                            onPressed: onNext,
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    SizedBox(
+                      height: 2.5,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: progress.clamp(0.0, 1.0),
+                          child: Container(color: c.accent),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

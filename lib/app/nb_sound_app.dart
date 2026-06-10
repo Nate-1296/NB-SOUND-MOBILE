@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/network/pinned_http_overrides.dart';
 import '../core/router/app_router.dart';
 import '../features/equalizer/application/equalizer_controller.dart';
+import '../features/player/application/player_controller.dart';
 import '../features/sync/application/remote_media_provider.dart';
 import '../features/sync/application/sync_controller.dart';
 import '../shared/theme/nb_theme.dart';
@@ -41,6 +42,12 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
         // Al volver a primer plano: sincroniza para reflejar cambios del PC.
         if (resumed && !_enPrimerPlano) {
           _sincronizar();
+        }
+        // Al ir a segundo plano: persiste la sesión del reproductor con la
+        // posición real, para restaurarla al reabrir (como Spotify).
+        if (estado == AppLifecycleState.paused ||
+            estado == AppLifecycleState.hidden) {
+          ref.read(playerControllerProvider.notifier).guardarSesion();
         }
         _enPrimerPlano = resumed;
       },

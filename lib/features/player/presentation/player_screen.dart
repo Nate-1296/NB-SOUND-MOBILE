@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/di/providers.dart';
 import '../../../core/utils/duration_format.dart';
@@ -15,6 +16,7 @@ import '../../../shared/widgets/chip_pill.dart';
 import '../../../shared/widgets/cover.dart';
 import '../../karaoke/application/karaoke_providers.dart';
 import '../../library/application/library_providers.dart';
+import '../../library/presentation/widgets/pista_list.dart';
 import '../../lyrics/application/lyrics_providers.dart';
 import '../../lyrics/data/lyrics_models.dart';
 import '../../offline/application/download_providers.dart';
@@ -69,7 +71,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    final ImageProvider? cover = ref.watch(coverResolverProvider).imageFor(
+    final ImageProvider? cover = ref
+        .watch(coverResolverProvider)
+        .imageFor(
           pista.coverPath,
           cacheWidth: coverCachePx(context, MediaQuery.sizeOf(context).width),
         );
@@ -97,14 +101,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: <Widget>[
-                          for (final (_View v, String l) tab in const <(
-                            _View,
-                            String
-                          )>[
-                            (_View.portada, 'Portada'),
-                            (_View.letra, 'Letra'),
-                            (_View.cola, 'Cola'),
-                          ]) ...<Widget>[
+                          for (final (_View v, String l) tab
+                              in const <(_View, String)>[
+                                (_View.portada, 'Portada'),
+                                (_View.letra, 'Letra'),
+                                (_View.cola, 'Cola'),
+                              ]) ...<Widget>[
                             ChipPill(
                               label: tab.$2,
                               active: _view == tab.$1,
@@ -136,53 +138,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// Cierra el reproductor y navega a [ruta] (álbum/artista). Se captura el router
+  /// antes del pop para no usar un `context` desmontado.
+  void _irA(String ruta) {
+    final GoRouter router = GoRouter.of(context);
+    Navigator.of(context).maybePop();
+    router.push(ruta);
+  }
+
   Widget _header(NbColors c, Pista pista) {
-    return Row(
+    final Widget contexto = Column(
       children: <Widget>[
-        IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          icon: Icon(AppIcons.chevronDown, color: c.text, size: 26),
-        ),
-        Expanded(
-          child: Column(
-            children: <Widget>[
-              Text(
-                'REPRODUCIENDO DESDE',
-                style: TextStyle(
-                  fontFamily: NbFonts.ui,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.4,
-                  color: c.text3,
-                ),
-              ),
-              const SizedBox(height: 2),
-              AutoFitText(
-                pista.albumTitulo ?? 'Tu biblioteca',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                minFontSize: 10.5,
-                style: TextStyle(
-                  fontFamily: NbFonts.ui,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: c.text,
-                ),
-              ),
-            ],
+        Text(
+          'REPRODUCIENDO DESDE',
+          style: TextStyle(
+            fontFamily: NbFonts.ui,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.4,
+            color: c.text3,
           ),
         ),
-        // "Reproducir en Mi PC" solo tiene sentido con un PC conectado: si no hay
-        // enlace o está desconectado, se oculta (se conserva el ancho para no
-        // descentrar el título de cabecera).
-        if (ref.watch(conexionPcProvider) == ConexionEstado.conectado)
-          IconButton(
-            onPressed: () => mostrarSelectorDestino(context, ref),
-            icon: Icon(AppIcons.cast, color: c.text, size: 22),
-          )
-        else
-          const SizedBox(width: 48),
+        const SizedBox(height: 2),
+        AutoFitText(
+          pista.albumTitulo ?? 'Tu biblioteca',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          minFontSize: 10.5,
+          style: TextStyle(
+            fontFamily: NbFonts.ui,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: c.text,
+          ),
+        ),
       ],
+    );
+    return GestureDetector(
+      onVerticalDragEnd: _cerrarSiArrastraAbajo,
+      child: Row(
+        children: <Widget>[
+          IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: Icon(AppIcons.chevronDown, color: c.text, size: 26),
+          ),
+          Expanded(
+            // Tocar "Reproduciendo desde [álbum]" abre el álbum (como Spotify).
+            child: pista.albumId == null
+                ? contexto
+                : GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _irA('/album/${pista.albumId}'),
+                    child: contexto,
+                  ),
+          ),
+          // "Reproducir en Mi PC" solo tiene sentido con un PC conectado.
+          if (ref.watch(conexionPcProvider) == ConexionEstado.conectado)
+            IconButton(
+              onPressed: () => mostrarSelectorDestino(context, ref),
+              icon: Icon(AppIcons.cast, color: c.text, size: 22),
+            ),
+          IconButton(
+            tooltip: 'Más opciones',
+            onPressed: () =>
+                mostrarMenuPista(context, ref, pista, ajustesReproductor: true),
+            icon: Icon(AppIcons.moreV, color: c.text, size: 22),
+          ),
+        ],
+      ),
     );
   }
 
@@ -196,20 +219,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       case _View.portada:
         // En tablet/Chromebook la portada es mayor (aprovecha el alto disponible),
         // acotada para no desbordar pantallas estrechas en vertical.
-        final double lado = (320 * context.cardScale)
-            .clamp(280.0, MediaQuery.sizeOf(context).height * 0.46);
-        return Center(
-          child: Cover(image: cover, size: lado, radius: 22),
+        final double lado = (320 * context.cardScale).clamp(
+          280.0,
+          MediaQuery.sizeOf(context).height * 0.46,
         );
-      case _View.letra:
-        // Toca la letra para entrar/salir de pantalla completa.
+        // Desliza la portada hacia abajo para cerrar el reproductor (como Spotify).
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _immersive = !_immersive),
+          onVerticalDragEnd: _cerrarSiArrastraAbajo,
+          child: Center(
+            child: Cover(image: cover, size: lado, radius: 22),
+          ),
+        );
+      case _View.letra:
+        // Mantén pulsada la letra para entrar/salir de pantalla completa; un toque
+        // sobre una línea salta a ese momento (ver `_Letra`).
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onLongPress: () => setState(() => _immersive = !_immersive),
           child: _Letra(pistaId: pista.id),
         );
       case _View.cola:
         return _Cola(player: player);
+    }
+  }
+
+  /// Cierra el reproductor si el gesto vertical fue claramente hacia abajo.
+  void _cerrarSiArrastraAbajo(DragEndDetails d) {
+    if ((d.primaryVelocity ?? 0) > 320) {
+      Navigator.of(context).maybePop();
     }
   }
 
@@ -235,15 +273,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               const SizedBox(height: 3),
-              Text(
-                pista.artistaNombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: NbFonts.ui,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: c.text2,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: pista.artistaId == null
+                    ? null
+                    : () => _irA('/artist/${pista.artistaId}'),
+                child: Text(
+                  pista.artistaNombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: c.text2,
+                  ),
                 ),
               ),
             ],
@@ -311,11 +355,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   TextStyle _timeStyle(NbColors c) => TextStyle(
-        fontFamily: NbFonts.ui,
-        fontSize: 11.5,
-        fontWeight: FontWeight.w500,
-        color: c.text3,
-      );
+    fontFamily: NbFonts.ui,
+    fontSize: 11.5,
+    fontWeight: FontWeight.w500,
+    color: c.text3,
+  );
 
   Widget _controls(NbColors c, PlayerState player) {
     final PlayerController ctrl = ref.read(playerControllerProvider.notifier);
@@ -443,8 +487,9 @@ class _LetraState extends ConsumerState<_Letra> {
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
-    final AsyncValue<Lyrics?> lyricsAsync =
-        ref.watch(lyricsProvider(widget.pistaId));
+    final AsyncValue<Lyrics?> lyricsAsync = ref.watch(
+      lyricsProvider(widget.pistaId),
+    );
     final Duration pos = ref.watch(
       playerControllerProvider.select((PlayerState s) => s.position),
     );
@@ -501,23 +546,30 @@ class _LetraState extends ConsumerState<_Letra> {
       itemCount: lyrics.synced.length,
       itemBuilder: (BuildContext context, int i) {
         final bool isActive = i == active;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Center(
-            // AutoFitText: la línea (incluida la activa en negrita) siempre se ve
-            // completa, ocupando más ancho y reduciéndose si hace falta, sin pasar
-            // a recorte ni desaparecer.
-            child: AutoFitText(
-              lyrics.synced[i].text.isEmpty ? '♪' : lyrics.synced[i].text,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              minFontSize: 13 * escala,
-              style: TextStyle(
-                fontFamily: NbFonts.display,
-                fontSize: (isActive ? 20 : 16) * escala,
-                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                height: 1.2,
-                color: isActive ? c.text : c.text3,
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          // Toca una línea para saltar a ese momento de la canción.
+          onTap: () => ref
+              .read(playerControllerProvider.notifier)
+              .buscarPosicion(lyrics.synced[i].time),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Center(
+              // AutoFitText: la línea (incluida la activa en negrita) siempre se ve
+              // completa, ocupando más ancho y reduciéndose si hace falta, sin pasar
+              // a recorte ni desaparecer.
+              child: AutoFitText(
+                lyrics.synced[i].text.isEmpty ? '♪' : lyrics.synced[i].text,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                minFontSize: 13 * escala,
+                style: TextStyle(
+                  fontFamily: NbFonts.display,
+                  fontSize: (isActive ? 20 : 16) * escala,
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                  height: 1.2,
+                  color: isActive ? c.text : c.text3,
+                ),
               ),
             ),
           ),
@@ -531,7 +583,8 @@ class _LetraState extends ConsumerState<_Letra> {
       return;
     }
     final double viewport = _scroll.position.viewportDimension;
-    final double target = (index * _itemExtent) - (viewport / 2) + (_itemExtent / 2);
+    final double target =
+        (index * _itemExtent) - (viewport / 2) + (_itemExtent / 2);
     _scroll.animateTo(
       target.clamp(0.0, _scroll.position.maxScrollExtent),
       duration: const Duration(milliseconds: 350),
@@ -557,7 +610,6 @@ class _LetraState extends ConsumerState<_Letra> {
       ),
     );
   }
-
 }
 
 /// Botón de karaoke (solo icono) para la fila de acciones del reproductor.
@@ -570,8 +622,9 @@ class _KaraokeIconButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final bool karaoke = ref
-        .watch(playerControllerProvider.select((PlayerState s) => s.karaoke));
+    final bool karaoke = ref.watch(
+      playerControllerProvider.select((PlayerState s) => s.karaoke),
+    );
     final bool disponible =
         ref.watch(stemsDisponibleProvider(pistaId)).value ?? false;
     // Si ya está activo, siempre se puede apagar aunque el chequeo varíe.
@@ -610,7 +663,10 @@ class _KaraokeIconButton extends ConsumerWidget {
   }
 }
 
-/// Vista de cola: "a continuación" tras la pista en curso.
+/// Vista de cola: la lista de reproducción actual. Con aleatorio apagado se puede
+/// **reordenar** (arrastrar) y **quitar** pistas; con aleatorio activo se muestra
+/// el orden barajado real (sin reordenar, pero sí saltar/quitar). Tocar una fila
+/// salta a esa pista.
 class _Cola extends ConsumerWidget {
   const _Cola({required this.player});
   final PlayerState player;
@@ -620,52 +676,157 @@ class _Cola extends ConsumerWidget {
     final NbColors c = context.nb;
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final int px = coverCachePx(context, 40);
-    // Cola en el orden efectivo (refleja la baraja real con aleatorio activo).
-    // `orden[i]` es el índice original de la pista que ocupa la fila i.
-    final List<int> orden = ordenEfectivo(player.order, player.queue.length);
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 4, bottom: 12),
-      itemCount: orden.length,
-      itemBuilder: (BuildContext context, int i) {
-        final int origIdx = orden[i];
-        final Pista p = player.queue[origIdx];
-        final bool actual = origIdx == player.index;
-        return ListTile(
-          dense: true,
-          onTap: () =>
-              ref.read(playerControllerProvider.notifier).irACola(origIdx),
-          leading: Cover(
-            image: resolver.imageFor(p.coverPath, cacheWidth: px),
-            size: 40,
-            radius: 8,
-            shadow: false,
+    final PlayerController ctrl = ref.read(playerControllerProvider.notifier);
+
+    // Con aleatorio activo: orden efectivo, sin reordenar (just_audio no expone
+    // reordenar la baraja). Se conserva saltar y quitar (mapeando al índice real).
+    final Widget lista;
+    if (player.shuffle) {
+      final List<int> orden = ordenEfectivo(player.order, player.queue.length);
+      lista = ListView.builder(
+        padding: const EdgeInsets.only(top: 4, bottom: 12),
+        itemCount: orden.length,
+        itemBuilder: (BuildContext context, int i) {
+          final int origIdx = orden[i];
+          return _colaTile(
+            context,
+            ctrl,
+            resolver,
+            px,
+            pista: player.queue[origIdx],
+            actual: origIdx == player.index,
+            onTap: () => ctrl.irACola(origIdx),
+            onRemove: () => ctrl.quitarDeCola(origIdx),
+          );
+        },
+      );
+    } else {
+      // Sin aleatorio: orden natural, reordenable por arrastre.
+      lista = ReorderableListView.builder(
+        padding: const EdgeInsets.only(top: 4, bottom: 12),
+        buildDefaultDragHandles: false,
+        itemCount: player.queue.length,
+        onReorderItem: ctrl.moverEnCola,
+        itemBuilder: (BuildContext context, int i) {
+          return _colaTile(
+            context,
+            ctrl,
+            resolver,
+            px,
+            key: ValueKey<int>(i),
+            pista: player.queue[i],
+            actual: i == player.index,
+            onTap: () => ctrl.irACola(i),
+            onRemove: () => ctrl.quitarDeCola(i),
+            dragIndex: i,
+          );
+        },
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(6, 6, 4, 0),
+          child: Row(
+            children: <Widget>[
+              Text(
+                'EN COLA',
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: c.text3,
+                ),
+              ),
+              const Spacer(),
+              if (player.queue.length > 1)
+                TextButton(
+                  onPressed: ctrl.limpiarCola,
+                  child: Text(
+                    'Borrar cola',
+                    style: TextStyle(
+                      fontFamily: NbFonts.ui,
+                      fontWeight: FontWeight.w600,
+                      color: c.text2,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          title: Text(
-            p.titulo,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: NbFonts.ui,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: actual ? c.accent : c.text,
+        ),
+        Expanded(child: lista),
+      ],
+    );
+  }
+
+  /// Fila de cola reutilizable. Si [dragIndex] no es null, muestra el asa de
+  /// arrastre. La pista en curso no se puede quitar (se marca con el icono de
+  /// volumen).
+  Widget _colaTile(
+    BuildContext context,
+    PlayerController ctrl,
+    CoverResolver resolver,
+    int px, {
+    Key? key,
+    required Pista pista,
+    required bool actual,
+    required VoidCallback onTap,
+    required VoidCallback onRemove,
+    int? dragIndex,
+  }) {
+    final NbColors c = context.nb;
+    return ListTile(
+      key: key,
+      dense: true,
+      onTap: onTap,
+      leading: Cover(
+        image: resolver.imageFor(pista.coverPath, cacheWidth: px),
+        size: 40,
+        radius: 8,
+        shadow: false,
+      ),
+      title: Text(
+        pista.titulo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: NbFonts.ui,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: actual ? c.accent : c.text,
+        ),
+      ),
+      subtitle: Text(
+        pista.artistaNombre,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontFamily: NbFonts.ui, fontSize: 12, color: c.text2),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (actual)
+            Icon(AppIcons.volume, color: c.accent, size: 18)
+          else
+            IconButton(
+              tooltip: 'Quitar de la cola',
+              visualDensity: VisualDensity.compact,
+              onPressed: onRemove,
+              icon: Icon(AppIcons.close, size: 18, color: c.text3),
             ),
-          ),
-          subtitle: Text(
-            p.artistaNombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: NbFonts.ui,
-              fontSize: 12,
-              color: c.text2,
+          if (dragIndex != null)
+            ReorderableDragStartListener(
+              index: dragIndex,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(AppIcons.dragHandle, size: 20, color: c.text3),
+              ),
             ),
-          ),
-          trailing: actual
-              ? Icon(AppIcons.volume, color: c.accent, size: 18)
-              : null,
-        );
-      },
+        ],
+      ),
     );
   }
 }

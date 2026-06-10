@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/providers.dart';
 import '../../../../data/db/database.dart';
@@ -11,6 +12,7 @@ import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../../player/application/player_controller.dart';
+import '../../../player/application/sleep_timer.dart';
 import '../../../remote_control/application/remote_controller.dart';
 import '../../application/library_providers.dart';
 import 'playlist_dialogs.dart';
@@ -64,14 +66,17 @@ Widget pistaRow(
     liked: deps.favoritas.contains(p.id),
     downloaded: deps.descargadas.contains(p.id),
     onTap: () {
-      final ctrl = ref.read(playerControllerProvider.notifier);
+      final PlaybackActions acciones = ref.read(playbackActionsProvider);
       if (comoColeccion) {
-        ctrl.reproducir(pistas, i);
+        acciones.reproducirColeccion(pistas, i);
       } else {
-        ctrl.reproducir(<Pista>[p], 0);
+        acciones.reproducirPistaUnica(p);
       }
     },
     onMore: () => mostrarMenuPista(context, ref, p),
+    swipeKey: ValueKey<String>('q-$i-${p.id}'),
+    onSwipeQueue: () =>
+        ref.read(playbackActionsProvider).encolarColeccion(<Pista>[p]),
   );
 }
 
@@ -190,12 +195,19 @@ class PistaSliverList extends ConsumerWidget {
   }
 }
 
-/// Menú contextual de una pista (reproducir, favorito).
+/// Acción extra opcional para el menú de pista (p. ej. "Quitar de la playlist").
+typedef AccionMenuPista = ({String label, IconData icon, VoidCallback onTap});
+
+/// Menú contextual de una pista: reproducir, cola, favorito, añadir a playlist,
+/// ir al álbum/artista, descargar y (en remoto) acciones del PC. Con
+/// [accionRemover] añade una opción destructiva al final (quitar de una lista).
 Future<void> mostrarMenuPista(
   BuildContext context,
   WidgetRef ref,
-  Pista pista,
-) {
+  Pista pista, {
+  AccionMenuPista? accionRemover,
+  bool ajustesReproductor = false,
+}) {
   final NbColors c = context.nb;
   final bool esFav = (ref.read(favoritasIdsProvider).value ?? const <int>{})
       .contains(pista.id);
@@ -245,9 +257,44 @@ Future<void> mostrarMenuPista(
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                ref.read(playerControllerProvider.notifier).reproducirPista(pista);
+                ref.read(playbackActionsProvider).reproducirPistaUnica(pista);
               },
             ),
+            // Cola local (en remoto, la cola es del PC: ver "Añadir a la cola del
+            // PC" más abajo).
+            if (!enPc) ...<Widget>[
+              ListTile(
+                leading: Icon(AppIcons.next, color: c.text),
+                title: Text(
+                  'Reproducir a continuación',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ref.read(playerControllerProvider.notifier)
+                      .reproducirACont(pista);
+                },
+              ),
+              ListTile(
+                leading: Icon(AppIcons.queue, color: c.text),
+                title: Text(
+                  'Añadir a la cola',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ref.read(playerControllerProvider.notifier).addToQueue(pista);
+                },
+              ),
+            ],
             ListTile(
               leading: Icon(
                 esFav ? AppIcons.heartFilled : AppIcons.heart,
@@ -281,6 +328,38 @@ Future<void> mostrarMenuPista(
                 anadirAPlaylist(context, ref, pista.id);
               },
             ),
+            if (pista.albumId != null)
+              ListTile(
+                leading: Icon(AppIcons.disc, color: c.text),
+                title: Text(
+                  'Ir al álbum',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push('/album/${pista.albumId}');
+                },
+              ),
+            if (pista.artistaId != null)
+              ListTile(
+                leading: Icon(AppIcons.user, color: c.text),
+                title: Text(
+                  'Ir al artista',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push('/artist/${pista.artistaId}');
+                },
+              ),
             ListTile(
               leading: Icon(
                 descargada ? AppIcons.downloadDone : AppIcons.download,
@@ -341,8 +420,265 @@ Future<void> mostrarMenuPista(
                 },
               ),
             ],
+            if (ajustesReproductor) ...<Widget>[
+              ListTile(
+                leading: Icon(AppIcons.sliders, color: c.text),
+                title: Text(
+                  'Velocidad',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _mostrarVelocidad(context, ref);
+                },
+              ),
+              ListTile(
+                leading: Icon(AppIcons.clock, color: c.text),
+                title: Text(
+                  'Temporizador de apagado',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _mostrarTemporizador(context, ref);
+                },
+              ),
+            ],
+            if (accionRemover != null)
+              ListTile(
+                leading: Icon(accionRemover.icon, color: _menuDanger),
+                title: Text(
+                  accionRemover.label,
+                  style: const TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: _menuDanger,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  accionRemover.onTap();
+                },
+              ),
           ],
         ),
+      );
+    },
+  );
+}
+
+/// Rojo de acción destructiva en el menú de pista (convencional, fuera del tema).
+const Color _menuDanger = Color(0xFFE5484D);
+
+/// Menú de una colección (álbum/playlist): "Añadir a la cola" + acciones extra.
+Future<void> mostrarMenuColeccion(
+  BuildContext context,
+  WidgetRef ref,
+  List<Pista> pistas, {
+  List<AccionMenuPista> extras = const <AccionMenuPista>[],
+}) {
+  final NbColors c = context.nb;
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: c.bg2,
+    showDragHandle: true,
+    useRootNavigator: true,
+    builder: (BuildContext sheetContext) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: Icon(AppIcons.queue, color: c.text),
+              title: Text(
+                'Añadir a la cola',
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontWeight: FontWeight.w600,
+                  color: c.text,
+                ),
+              ),
+              onTap: pistas.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(sheetContext).pop();
+                      ref
+                          .read(playbackActionsProvider)
+                          .encolarColeccion(pistas);
+                    },
+            ),
+            for (final AccionMenuPista a in extras)
+              ListTile(
+                leading: Icon(a.icon, color: c.text),
+                title: Text(
+                  a.label,
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  a.onTap();
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Widget _tituloHoja(NbColors c, String titulo) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          titulo,
+          style: TextStyle(
+            fontFamily: NbFonts.display,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: c.text,
+          ),
+        ),
+      ),
+    );
+
+String _fmtVel(double v) =>
+    v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+
+/// Hoja de velocidad de reproducción.
+void _mostrarVelocidad(BuildContext context, WidgetRef ref) {
+  final NbColors c = context.nb;
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: c.bg2,
+    showDragHandle: true,
+    useRootNavigator: true,
+    builder: (BuildContext sheetContext) {
+      return Consumer(
+        builder: (BuildContext ctx, WidgetRef r, _) {
+          final double actual = r.watch(
+              playerControllerProvider.select((PlayerState s) => s.velocidad));
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _tituloHoja(c, 'Velocidad'),
+                for (final double v in const <double>[
+                  0.5,
+                  0.75,
+                  1.0,
+                  1.25,
+                  1.5,
+                  1.75,
+                  2.0,
+                ])
+                  ListTile(
+                    dense: true,
+                    onTap: () {
+                      r
+                          .read(playerControllerProvider.notifier)
+                          .setVelocidad(v);
+                      Navigator.of(sheetContext).pop();
+                    },
+                    leading: Icon(
+                      (v - actual).abs() < 0.01
+                          ? AppIcons.check
+                          : AppIcons.list,
+                      color: (v - actual).abs() < 0.01 ? c.accent : c.text3,
+                    ),
+                    title: Text(
+                      v == 1.0 ? 'Normal (1×)' : '${_fmtVel(v)}×',
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontWeight: FontWeight.w600,
+                        color: (v - actual).abs() < 0.01 ? c.accent : c.text,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+/// Hoja del temporizador de apagado.
+void _mostrarTemporizador(BuildContext context, WidgetRef ref) {
+  final NbColors c = context.nb;
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: c.bg2,
+    showDragHandle: true,
+    useRootNavigator: true,
+    builder: (BuildContext sheetContext) {
+      return Consumer(
+        builder: (BuildContext ctx, WidgetRef r, _) {
+          final Duration? activo = r.watch(sleepTimerProvider);
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _tituloHoja(c, 'Temporizador de apagado'),
+                for (final int m in const <int>[5, 10, 15, 30, 45, 60])
+                  ListTile(
+                    dense: true,
+                    onTap: () {
+                      r
+                          .read(sleepTimerProvider.notifier)
+                          .activar(Duration(minutes: m));
+                      Navigator.of(sheetContext).pop();
+                    },
+                    leading: Icon(
+                      activo?.inMinutes == m ? AppIcons.check : AppIcons.clock,
+                      color: activo?.inMinutes == m ? c.accent : c.text3,
+                    ),
+                    title: Text(
+                      '$m minutos',
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontWeight: FontWeight.w600,
+                        color: activo?.inMinutes == m ? c.accent : c.text,
+                      ),
+                    ),
+                  ),
+                if (activo != null)
+                  ListTile(
+                    dense: true,
+                    onTap: () {
+                      r.read(sleepTimerProvider.notifier).cancelar();
+                      Navigator.of(sheetContext).pop();
+                    },
+                    leading: const Icon(AppIcons.close, color: _menuDanger),
+                    title: const Text(
+                      'Desactivar',
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontWeight: FontWeight.w600,
+                        color: _menuDanger,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
       );
     },
   );
