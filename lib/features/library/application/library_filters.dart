@@ -326,14 +326,145 @@ List<T> _rankPorBusqueda<T, I>(
   return <T>[for (final ({double s, I i}) e in scored) extraer(e.i)];
 }
 
+// ── Búsqueda CRUZADA por sección (Álbumes/Artistas) ───────────────────────────
+// Cada sección muestra SOLO su tipo, pero se puede encontrar por referencias
+// cruzadas: en Álbumes, buscar un artista trae sus álbumes y buscar una pista
+// trae el álbum que la contiene; en Artistas, buscar un álbum/pista trae su
+// artista. (En Pistas ya lo cubre `PistaBusq`, que puntúa por título, artista y
+// álbum.) Se puntúa cada "campo" y se toma el máximo, con los campos directos
+// (título/nombre) a peso pleno y los cruzados algo menores para que el match
+// directo ordene primero.
+
+/// Un campo indexado para puntuar (texto normalizado + tokens + peso).
+typedef CampoBusqueda = ({double peso, String norm, List<String> tokens});
+
+CampoBusqueda _campo(String texto, double peso) {
+  final String n = normalizar(texto);
+  return (peso: peso, norm: n, tokens: tokenizar(n));
+}
+
+/// Mejor puntuación (0..1) de [q] sobre [campos], aplicando el peso de cada uno.
+/// Pura y testeable. Corta en cuanto encuentra una coincidencia casi perfecta.
+double puntuarCampos(String q, List<CampoBusqueda> campos) {
+  double m = 0;
+  for (final CampoBusqueda c in campos) {
+    final double s = puntuarTexto(q, c.norm, c.tokens) * c.peso;
+    if (s > m) {
+      m = s;
+    }
+    if (m >= 0.999) {
+      break;
+    }
+  }
+  return m;
+}
+
+/// Álbum indexado para búsqueda cruzada: título (×1.0), nombre del artista
+/// (×0.9) y títulos de sus pistas (×0.85).
+class _AlbumCruz {
+  _AlbumCruz(
+    this.album, {
+    required String artistaNombre,
+    required List<String> pistaTitulos,
+  }) : _campos = <CampoBusqueda>[
+          _campo(album.titulo, 1.0),
+          if (artistaNombre.isNotEmpty) _campo(artistaNombre, 0.9),
+          for (final String t in pistaTitulos) _campo(t, 0.85),
+        ];
+
+  final Album album;
+  final List<CampoBusqueda> _campos;
+
+  double puntuar(String q) => puntuarCampos(q, _campos);
+}
+
+/// Artista indexado para búsqueda cruzada: nombre (×1.0), títulos de sus álbumes
+/// (×0.9) y títulos de sus pistas (×0.85).
+class _ArtistaCruz {
+  _ArtistaCruz(
+    this.artista, {
+    required List<String> albumTitulos,
+    required List<String> pistaTitulos,
+  }) : _campos = <CampoBusqueda>[
+          _campo(artista.nombre, 1.0),
+          for (final String t in albumTitulos) _campo(t, 0.9),
+          for (final String t in pistaTitulos) _campo(t, 0.85),
+        ];
+
+  final Artista artista;
+  final List<CampoBusqueda> _campos;
+
+  double puntuar(String q) => puntuarCampos(q, _campos);
+}
+
+/// Índice cruzado de álbumes (se recalcula solo al cambiar el catálogo).
+final Provider<List<_AlbumCruz>> _albumCruzIndexProvider =
+    Provider<List<_AlbumCruz>>((Ref ref) {
+  final List<Album> albums = ref.watch(albumsProvider).value ?? const <Album>[];
+  final List<Artista> artistas =
+      ref.watch(artistasProvider).value ?? const <Artista>[];
+  final List<Pista> pistas = ref.watch(pistasProvider).value ?? const <Pista>[];
+  final Map<int, String> nombrePorArtista = <int, String>{
+    for (final Artista a in artistas) a.id: a.nombre,
+  };
+  final Map<int, List<String>> titulosPorAlbum = <int, List<String>>{};
+  for (final Pista p in pistas) {
+    final int? id = p.albumId;
+    if (id != null) {
+      (titulosPorAlbum[id] ??= <String>[]).add(p.titulo);
+    }
+  }
+  return <_AlbumCruz>[
+    for (final Album a in albums)
+      _AlbumCruz(
+        a,
+        artistaNombre:
+            a.artistaId == null ? '' : (nombrePorArtista[a.artistaId] ?? ''),
+        pistaTitulos: titulosPorAlbum[a.id] ?? const <String>[],
+      ),
+  ];
+});
+
+/// Índice cruzado de artistas (se recalcula solo al cambiar el catálogo).
+final Provider<List<_ArtistaCruz>> _artistaCruzIndexProvider =
+    Provider<List<_ArtistaCruz>>((Ref ref) {
+  final List<Artista> artistas =
+      ref.watch(artistasProvider).value ?? const <Artista>[];
+  final List<Album> albums = ref.watch(albumsProvider).value ?? const <Album>[];
+  final List<Pista> pistas = ref.watch(pistasProvider).value ?? const <Pista>[];
+  final Map<int, List<String>> albumTitulosPorArtista = <int, List<String>>{};
+  for (final Album al in albums) {
+    final int? id = al.artistaId;
+    if (id != null) {
+      (albumTitulosPorArtista[id] ??= <String>[]).add(al.titulo);
+    }
+  }
+  final Map<int, List<String>> pistaTitulosPorArtista = <int, List<String>>{};
+  for (final Pista p in pistas) {
+    final int? id = p.artistaId;
+    if (id != null) {
+      (pistaTitulosPorArtista[id] ??= <String>[]).add(p.titulo);
+    }
+  }
+  return <_ArtistaCruz>[
+    for (final Artista ar in artistas)
+      _ArtistaCruz(
+        ar,
+        albumTitulos: albumTitulosPorArtista[ar.id] ?? const <String>[],
+        pistaTitulos: pistaTitulosPorArtista[ar.id] ?? const <String>[],
+      ),
+  ];
+});
+
 final Provider<List<Album>> albumesFiltradosProvider =
     Provider<List<Album>>((Ref ref) {
   final String q = normalizar(ref.watch(queryAlbumesProvider));
   if (q.isNotEmpty) {
-    return _rankPorBusqueda<Album, AlbumBusq>(
-      ref.watch(albumIndexProvider),
-      (AlbumBusq a) => a.puntuar(q),
-      (AlbumBusq a) => a.album,
+    // Búsqueda cruzada: por título de álbum, por artista y por pista.
+    return _rankPorBusqueda<Album, _AlbumCruz>(
+      ref.watch(_albumCruzIndexProvider),
+      (_AlbumCruz a) => a.puntuar(q),
+      (_AlbumCruz a) => a.album,
     );
   }
   final List<Album> base =
@@ -360,10 +491,11 @@ final Provider<List<Artista>> artistasFiltradosProvider =
     Provider<List<Artista>>((Ref ref) {
   final String q = normalizar(ref.watch(queryArtistasProvider));
   if (q.isNotEmpty) {
-    return _rankPorBusqueda<Artista, ArtistaBusq>(
-      ref.watch(artistaIndexProvider),
-      (ArtistaBusq a) => a.puntuar(q),
-      (ArtistaBusq a) => a.artista,
+    // Búsqueda cruzada: por nombre de artista, por sus álbumes y por sus pistas.
+    return _rankPorBusqueda<Artista, _ArtistaCruz>(
+      ref.watch(_artistaCruzIndexProvider),
+      (_ArtistaCruz a) => a.puntuar(q),
+      (_ArtistaCruz a) => a.artista,
     );
   }
   final List<Artista> base =

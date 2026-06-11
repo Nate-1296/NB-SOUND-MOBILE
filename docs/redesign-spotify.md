@@ -489,3 +489,18 @@ tests, build release OK. Resumen por área:
   devolvía al llegar a un detalle directo desde una pestaña.
 
 Dependencia nueva: `image_picker ^1.1.2`. Schema Drift sin cambios (todo kv).
+
+### Búsqueda cruzada en Biblioteca (2026-06-11, adicional)
+
+Cada sección del buscador de Biblioteca sigue mostrando **solo su tipo**, pero se
+encuentra por **referencias cruzadas** (`library_filters.dart`):
+- **Álbumes**: por título, por **artista** (sus álbumes) y por **pista** (el álbum
+  que la contiene). Índice `_AlbumCruz`.
+- **Artistas**: por nombre, por **álbum** (su artista) y por **pista** (su artista).
+  Índice `_ArtistaCruz`.
+- **Pistas**: ya lo cubría `PistaBusq` (puntúa por título, artista ×0.85 y álbum
+  ×0.75).
+
+Núcleo puro y testeado `puntuarCampos(q, campos)`: máximo ponderado entre los
+campos (directo ×1.0, cruzados ×0.9/×0.85, así el match directo ordena primero).
+Los índices cruzados se recalculan solo al cambiar el catálogo. 174 tests.
