@@ -18,7 +18,9 @@ import '../../features/player/application/playback.dart';
 import '../../features/player/presentation/player_screen.dart';
 import '../../features/profile/presentation/configuracion_screen.dart';
 import '../../features/profile/presentation/general_screen.dart';
+import '../../features/profile/presentation/icono_app_screen.dart';
 import '../../features/profile/presentation/perfil_screen.dart';
+import '../../features/profile/presentation/temas_screen.dart';
 import '../../features/sync/presentation/sync_screen.dart';
 import '../../shared/theme/nb_colors.dart';
 import '../../shared/widgets/mini_player_bar.dart';
@@ -163,6 +165,18 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
         parentNavigatorKey: _rootKey,
         builder: (BuildContext context, GoRouterState state) =>
             const EcualizadorScreen(),
+      ),
+      GoRoute(
+        path: '/temas',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const TemasScreen(),
+      ),
+      GoRoute(
+        path: '/icono-app',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const IconoAppScreen(),
       ),
       GoRoute(
         path: '/sync',

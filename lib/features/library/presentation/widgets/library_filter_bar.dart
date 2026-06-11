@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/widgets/app_icons.dart';
+import '../../../../shared/widgets/sheet.dart';
+import '../../application/library_filters.dart';
 
 /// Barra de filtro de una sección de biblioteca/playlists: buscador (con debounce
 /// propio) + botón de orden. Reutilizable e independiente por sección. El botón de
@@ -16,12 +18,19 @@ class LibraryFilterBar extends StatefulWidget {
     required this.onChanged,
     required this.onAbrirOrden,
     this.ordenActivo = false,
+    this.vistaIcono,
+    this.onAbrirVista,
   });
 
   final String hint;
   final ValueChanged<String> onChanged;
   final VoidCallback onAbrirOrden;
   final bool ordenActivo;
+
+  /// Icono del modo de visualización actual (lista/cuadrícula). Si se da junto a
+  /// [onAbrirVista], se muestra un botón para cambiar el aspecto de la sección.
+  final IconData? vistaIcono;
+  final VoidCallback? onAbrirVista;
 
   @override
   State<LibraryFilterBar> createState() => _LibraryFilterBarState();
@@ -113,10 +122,90 @@ class _LibraryFilterBarState extends State<LibraryFilterBar> {
               color: widget.ordenActivo ? c.accent : c.text2,
             ),
           ),
+          if (widget.vistaIcono != null && widget.onAbrirVista != null) ...<Widget>[
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: 'Modo de visualización',
+              onPressed: widget.onAbrirVista,
+              style: IconButton.styleFrom(
+                backgroundColor: c.bg2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  side: BorderSide(color: c.line2),
+                ),
+              ),
+              icon: Icon(widget.vistaIcono, size: 20, color: c.text2),
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+/// Icono representativo de un modo de visualización (para el botón de la barra).
+IconData iconoVista(LibraryViewMode m) => switch (m) {
+      LibraryViewMode.lista => AppIcons.viewList,
+      LibraryViewMode.gridPequena => AppIcons.viewGridSmall,
+      LibraryViewMode.gridMediana => AppIcons.viewGrid,
+    };
+
+/// Hoja para elegir el modo de visualización de una sección. Marca el activo.
+Future<void> mostrarVistaSheet({
+  required BuildContext context,
+  required LibraryViewMode actual,
+  required ValueChanged<LibraryViewMode> onSelect,
+}) {
+  return mostrarHojaMenu<void>(
+    context,
+    builder: (BuildContext sheetContext) {
+      final NbColors c = sheetContext.nb;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Cómo se ve',
+                style: TextStyle(
+                  fontFamily: NbFonts.display,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: c.text,
+                ),
+              ),
+            ),
+          ),
+          for (final LibraryViewMode m in LibraryViewMode.values)
+            ListTile(
+              dense: true,
+              onTap: () {
+                onSelect(m);
+                Navigator.of(sheetContext).pop();
+              },
+              leading: Icon(
+                iconoVista(m),
+                color: m == actual ? c.accent : c.text3,
+              ),
+              title: Text(
+                m.etiqueta,
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontWeight: m == actual ? FontWeight.w700 : FontWeight.w600,
+                  color: m == actual ? c.accent : c.text,
+                ),
+              ),
+              trailing: m == actual
+                  ? Icon(AppIcons.check, color: c.accent, size: 20)
+                  : null,
+            ),
+          const SizedBox(height: 8),
+        ],
+      );
+    },
+  );
 }
 
 /// Hoja de selección de orden con la opción activa marcada y "Limpiar filtros"
@@ -131,17 +220,10 @@ Future<void> mostrarOrdenSheet<T>({
   required VoidCallback onLimpiar,
 }) {
   final NbColors c = context.nb;
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: c.bg2,
-    showDragHandle: true,
-    // Se presenta sobre el navegador raíz para que la hoja quede ENCIMA del
-    // mini-reproductor y la barra inferior (si no, sus opciones de abajo quedan
-    // tapadas por el mini-reproductor de la pestaña).
-    useRootNavigator: true,
+  return mostrarHojaMenu<void>(
+    context,
     builder: (BuildContext sheetContext) {
-      return SafeArea(
-        child: Column(
+      return Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Padding(
@@ -197,8 +279,7 @@ Future<void> mostrarOrdenSheet<T>({
             ),
             const SizedBox(height: 8),
           ],
-        ),
-      );
+        );
     },
   );
 }

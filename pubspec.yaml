@@ -46,6 +46,7 @@ dependencies:
   collection: ^1.18.0
   crypto: ^3.0.3               # validar hash_sha256 del audio descargado
   device_info_plus: ^13.1.0
+  image_picker: ^1.1.2         # elegir foto de perfil desde la galería
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +65,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Previsualizaciones del selector "Ícono de la app": los 63 logos por tema
+  # (copiados del escritorio). El ícono real del lanzador lo conmutan los
+  # activity-alias de Android; estos PNG solo se usan para la rejilla del selector.
+  assets:
+    - assets/app_icons/
 
   # Sin media de catálogo empaquetada: audio y portadas llegan del PC vía
   # sync/streaming. La media de ejemplo del seed (assets/audio, assets/covers) y

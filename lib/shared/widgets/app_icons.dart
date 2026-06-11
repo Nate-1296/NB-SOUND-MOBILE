@@ -73,4 +73,15 @@ abstract final class AppIcons {
   static const IconData sparkles = Icons.auto_awesome_outlined;
   static const IconData bell = Icons.notifications_none_rounded;
   static const IconData globe = Icons.public_rounded;
+
+  // Modos de visualización (lista / cuadrícula).
+  static const IconData viewList = Icons.view_list_rounded;
+  static const IconData viewGridSmall = Icons.grid_view_rounded;
+  static const IconData viewGrid = Icons.grid_on_rounded;
+  static const IconData image = Icons.image_outlined;
+  static const IconData palette2 = Icons.color_lens_outlined;
+
+  // Pantalla completa (modo letra inmersivo).
+  static const IconData fullscreen = Icons.fullscreen_rounded;
+  static const IconData fullscreenExit = Icons.fullscreen_exit_rounded;
 }

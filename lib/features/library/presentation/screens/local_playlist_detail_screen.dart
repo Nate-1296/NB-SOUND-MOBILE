@@ -14,6 +14,7 @@ import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_covers.dart';
+import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
 import '../widgets/playlist_dialogs.dart';
 
@@ -145,7 +146,10 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                           ),
                         ],
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: <Widget>[
                             FilledButton.icon(
                               onPressed: pistas.isEmpty
@@ -170,17 +174,7 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: 'Reproducir aleatorio',
-                              onPressed: pistas.isEmpty
-                                  ? null
-                                  : () => ref
-                                      .read(playbackActionsProvider)
-                                      .reproducirColeccionAleatorio(pistas),
-                              icon: Icon(AppIcons.shuffle, color: c.text2),
-                            ),
-                            const SizedBox(width: 4),
+                            ShuffleCollectionButton(pistas: pistas),
                             OutlinedButton.icon(
                               onPressed: () => agregarPistasAPlaylist(
                                   context, ref, playlistId),
@@ -322,7 +316,8 @@ class _Header extends StatelessWidget {
       child: Row(
         children: <Widget>[
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/inicio'),
             icon: Icon(AppIcons.chevronDown, color: c.text, size: 26),
           ),
           Expanded(

@@ -59,6 +59,8 @@ class PlaylistsScreen extends ConsumerWidget {
     // Filtro + orden (difuso, persistido) aplicado a las tres listas.
     final String q = normalizar(ref.watch(queryPlaylistsProvider));
     final OrdenPlaylists orden = ref.watch(ordenPlaylistsProvider);
+    final LibraryViewMode vista = ref.watch(vistaPlaylistsProvider);
+    final bool esLista = vista == LibraryViewMode.lista;
     final Map<int, int> conteosLocal =
         ref.watch(conteosPlaylistsLocalesProvider).value ?? const <int, int>{};
     final Map<int, int> conteosPc =
@@ -90,35 +92,61 @@ class PlaylistsScreen extends ConsumerWidget {
         (
           token: tokenLocal(pl.id),
           anclada: ancladas.contains(tokenLocal(pl.id)),
-          card: LocalPlaylistCard(
-            playlist: pl,
-            pinned: ancladas.contains(tokenLocal(pl.id)),
-            onLongPress: () => _accionesAnclar(
-              context,
-              ref,
-              nombre: pl.nombre,
-              token: tokenLocal(pl.id),
-              anclada: ancladas.contains(tokenLocal(pl.id)),
-              ancladasEnSeccion: ancladasTus,
-            ),
-          ),
+          card: esLista
+              ? LocalPlaylistTile(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenLocal(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenLocal(pl.id),
+                    anclada: ancladas.contains(tokenLocal(pl.id)),
+                    ancladasEnSeccion: ancladasTus,
+                  ),
+                )
+              : LocalPlaylistCard(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenLocal(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenLocal(pl.id),
+                    anclada: ancladas.contains(tokenLocal(pl.id)),
+                    ancladasEnSeccion: ancladasTus,
+                  ),
+                ),
         ),
       for (final Playlist pl in guardadas)
         (
           token: tokenPc(pl.id),
           anclada: ancladas.contains(tokenPc(pl.id)),
-          card: PlaylistCard(
-            playlist: pl,
-            pinned: ancladas.contains(tokenPc(pl.id)),
-            onLongPress: () => _accionesAnclar(
-              context,
-              ref,
-              nombre: pl.nombre,
-              token: tokenPc(pl.id),
-              anclada: ancladas.contains(tokenPc(pl.id)),
-              ancladasEnSeccion: ancladasTus,
-            ),
-          ),
+          card: esLista
+              ? PlaylistTile(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenPc(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenPc(pl.id),
+                    anclada: ancladas.contains(tokenPc(pl.id)),
+                    ancladasEnSeccion: ancladasTus,
+                  ),
+                )
+              : PlaylistCard(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenPc(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenPc(pl.id),
+                    anclada: ancladas.contains(tokenPc(pl.id)),
+                    ancladasEnSeccion: ancladasTus,
+                  ),
+                ),
         ),
     ];
     tusItems = conAncladasArriba(tusItems, ancladas, (_Item e) => e.token);
@@ -128,18 +156,31 @@ class PlaylistsScreen extends ConsumerWidget {
         (
           token: tokenPc(pl.id),
           anclada: ancladas.contains(tokenPc(pl.id)),
-          card: PlaylistCard(
-            playlist: pl,
-            pinned: ancladas.contains(tokenPc(pl.id)),
-            onLongPress: () => _accionesAnclar(
-              context,
-              ref,
-              nombre: pl.nombre,
-              token: tokenPc(pl.id),
-              anclada: ancladas.contains(tokenPc(pl.id)),
-              ancladasEnSeccion: ancladasDelPc,
-            ),
-          ),
+          card: esLista
+              ? PlaylistTile(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenPc(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenPc(pl.id),
+                    anclada: ancladas.contains(tokenPc(pl.id)),
+                    ancladasEnSeccion: ancladasDelPc,
+                  ),
+                )
+              : PlaylistCard(
+                  playlist: pl,
+                  pinned: ancladas.contains(tokenPc(pl.id)),
+                  onLongPress: () => _accionesAnclar(
+                    context,
+                    ref,
+                    nombre: pl.nombre,
+                    token: tokenPc(pl.id),
+                    anclada: ancladas.contains(tokenPc(pl.id)),
+                    ancladasEnSeccion: ancladasDelPc,
+                  ),
+                ),
         ),
     ];
     delPcItems = conAncladasArriba(delPcItems, ancladas, (_Item e) => e.token);
@@ -153,6 +194,13 @@ class PlaylistsScreen extends ConsumerWidget {
         LibraryFilterBar(
           hint: 'Buscar playlists',
           ordenActivo: orden != OrdenPlaylists.nombreAsc,
+          vistaIcono: iconoVista(vista),
+          onAbrirVista: () => mostrarVistaSheet(
+            context: context,
+            actual: vista,
+            onSelect: (LibraryViewMode m) =>
+                ref.read(vistaPlaylistsProvider.notifier).seleccionar(m),
+          ),
           onChanged: (String v) =>
               ref.read(queryPlaylistsProvider.notifier).set(v),
           onAbrirOrden: () => mostrarOrdenSheet<OrdenPlaylists>(
@@ -184,19 +232,17 @@ class PlaylistsScreen extends ConsumerWidget {
                   children: <Widget>[
                     if (hayTuyas) ...<Widget>[
                       const SectionLabel(label: 'Tus playlists'),
-                      _Grid(
-                        children: <Widget>[
-                          for (final _Item it in tusItems) it.card,
-                        ],
+                      _seccion(
+                        esLista,
+                        <Widget>[for (final _Item it in tusItems) it.card],
                       ),
                     ],
                     if (delPcItems.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 8),
                       const SectionLabel(label: 'Del PC'),
-                      _Grid(
-                        children: <Widget>[
-                          for (final _Item it in delPcItems) it.card,
-                        ],
+                      _seccion(
+                        esLista,
+                        <Widget>[for (final _Item it in delPcItems) it.card],
                       ),
                     ],
                   ],
@@ -300,6 +346,7 @@ class PlaylistsScreen extends ConsumerWidget {
         title: 'Playlists',
         onProfile: () => context.push('/profile'),
         avatarInicial: ref.watch(inicialPerfilProvider),
+        avatarFoto: ref.watch(avatarPerfilProvider),
         trailing: IconButton(
           tooltip: 'Nueva playlist',
           onPressed: () async {
@@ -312,6 +359,10 @@ class PlaylistsScreen extends ConsumerWidget {
         ),
       );
 }
+
+/// Renderiza una sección de playlists en lista (Column de tiles) o en cuadrícula.
+Widget _seccion(bool esLista, List<Widget> children) =>
+    esLista ? Column(children: children) : _Grid(children: children);
 
 class _Grid extends StatelessWidget {
   const _Grid({required this.children});

@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/chip_pill.dart';
 import '../../../../shared/widgets/top_bar.dart';
 import '../../../offline/application/download_providers.dart';
+import '../../../player/application/playback.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../application/library_filters.dart';
 import '../widgets/library_cards.dart';
@@ -38,6 +39,7 @@ class _BibliotecaScreenState extends ConsumerState<BibliotecaScreen> {
           title: 'Tu biblioteca',
           onProfile: () => context.push('/profile'),
           avatarInicial: ref.watch(inicialPerfilProvider),
+          avatarFoto: ref.watch(avatarPerfilProvider),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
@@ -100,6 +102,18 @@ class _SinResultados extends StatelessWidget {
   }
 }
 
+/// Columnas y relación de aspecto de una cuadrícula según el modo. La pequeña
+/// añade columnas (celdas menores); las celdas son a prueba de desbordes, así que
+/// la relación de aspecto solo afecta a la estética, no produce overflow.
+({int cols, double aspect}) _gridParams(BuildContext context, LibraryViewMode m) {
+  final int base = gridColumns(MediaQuery.sizeOf(context).width);
+  return switch (m) {
+    LibraryViewMode.gridMediana => (cols: base, aspect: 0.74),
+    LibraryViewMode.gridPequena => (cols: base + 2, aspect: 0.74),
+    LibraryViewMode.lista => (cols: 1, aspect: 1),
+  };
+}
+
 class _AlbumesSeccion extends ConsumerWidget {
   const _AlbumesSeccion();
 
@@ -107,11 +121,19 @@ class _AlbumesSeccion extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final List<Album> albums = ref.watch(albumesFiltradosProvider);
     final OrdenAlbumes orden = ref.watch(ordenAlbumesProvider);
+    final LibraryViewMode vista = ref.watch(vistaAlbumesProvider);
     return Column(
       children: <Widget>[
         LibraryFilterBar(
           hint: 'Buscar álbumes',
           ordenActivo: orden != OrdenAlbumes.tituloAsc,
+          vistaIcono: iconoVista(vista),
+          onAbrirVista: () => mostrarVistaSheet(
+            context: context,
+            actual: vista,
+            onSelect: (LibraryViewMode m) =>
+                ref.read(vistaAlbumesProvider.notifier).seleccionar(m),
+          ),
           onChanged: (String v) =>
               ref.read(queryAlbumesProvider.notifier).set(v),
           onAbrirOrden: () => mostrarOrdenSheet<OrdenAlbumes>(
@@ -129,24 +151,45 @@ class _AlbumesSeccion extends ConsumerWidget {
           child: albums.isEmpty
               ? const _SinResultados()
               : MaxWidth(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount:
-                          gridColumns(MediaQuery.sizeOf(context).width),
-                      mainAxisSpacing: 18,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.78,
-                    ),
-                    itemCount: albums.length,
-                    itemBuilder: (BuildContext context, int i) =>
-                        AlbumCard(album: albums[i]),
-                  ),
+                  child: vista == LibraryViewMode.lista
+                      ? ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+                          itemCount: albums.length,
+                          itemBuilder: (BuildContext context, int i) =>
+                              AlbumTile(album: albums[i]),
+                        )
+                      : _grid(
+                          context,
+                          vista,
+                          albums.length,
+                          (int i) => AlbumGridCell(album: albums[i]),
+                        ),
                 ),
         ),
       ],
     );
   }
+}
+
+/// Constructor común de cuadrícula (álbumes/artistas/pistas) según el modo.
+Widget _grid(
+  BuildContext context,
+  LibraryViewMode vista,
+  int count,
+  Widget Function(int) itemBuilder,
+) {
+  final ({int cols, double aspect}) g = _gridParams(context, vista);
+  return GridView.builder(
+    padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: g.cols,
+      mainAxisSpacing: 18,
+      crossAxisSpacing: 16,
+      childAspectRatio: g.aspect,
+    ),
+    itemCount: count,
+    itemBuilder: (BuildContext context, int i) => itemBuilder(i),
+  );
 }
 
 class _ArtistasSeccion extends ConsumerWidget {
@@ -156,11 +199,19 @@ class _ArtistasSeccion extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final List<Artista> artistas = ref.watch(artistasFiltradosProvider);
     final OrdenArtistas orden = ref.watch(ordenArtistasProvider);
+    final LibraryViewMode vista = ref.watch(vistaArtistasProvider);
     return Column(
       children: <Widget>[
         LibraryFilterBar(
           hint: 'Buscar artistas',
           ordenActivo: orden != OrdenArtistas.nombreAsc,
+          vistaIcono: iconoVista(vista),
+          onAbrirVista: () => mostrarVistaSheet(
+            context: context,
+            actual: vista,
+            onSelect: (LibraryViewMode m) =>
+                ref.read(vistaArtistasProvider.notifier).seleccionar(m),
+          ),
           onChanged: (String v) =>
               ref.read(queryArtistasProvider.notifier).set(v),
           onAbrirOrden: () => mostrarOrdenSheet<OrdenArtistas>(
@@ -178,12 +229,19 @@ class _ArtistasSeccion extends ConsumerWidget {
           child: artistas.isEmpty
               ? const _SinResultados()
               : MaxWidth(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
-                    itemCount: artistas.length,
-                    itemBuilder: (BuildContext context, int i) =>
-                        ArtistTile(artista: artistas[i]),
-                  ),
+                  child: vista == LibraryViewMode.lista
+                      ? ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+                          itemCount: artistas.length,
+                          itemBuilder: (BuildContext context, int i) =>
+                              ArtistTile(artista: artistas[i]),
+                        )
+                      : _grid(
+                          context,
+                          vista,
+                          artistas.length,
+                          (int i) => ArtistGridCell(artista: artistas[i]),
+                        ),
                 ),
         ),
       ],
@@ -226,6 +284,7 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
     final NbColors c = context.nb;
     final List<Pista> pistas = ref.watch(pistasFiltradasProvider);
     final OrdenPistas orden = ref.watch(ordenPistasProvider);
+    final LibraryViewMode vista = ref.watch(vistaPistasProvider);
     // Solo se descarga lo que falta: las pistas ya completas no son seleccionables.
     final Set<int> completas = ref.watch(pistasCompletasProvider);
     final List<Pista> incompletas =
@@ -238,6 +297,17 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
         LibraryFilterBar(
           hint: 'Buscar pistas',
           ordenActivo: orden != OrdenPistas.tituloAsc,
+          // En modo selección no se ofrece cambiar la vista (es una lista con
+          // checkboxes); fuera de él, lista o cuadrícula.
+          vistaIcono: _seleccionando ? null : iconoVista(vista),
+          onAbrirVista: _seleccionando
+              ? null
+              : () => mostrarVistaSheet(
+                    context: context,
+                    actual: vista,
+                    onSelect: (LibraryViewMode m) =>
+                        ref.read(vistaPistasProvider.notifier).seleccionar(m),
+                  ),
           onChanged: (String v) =>
               ref.read(queryPistasProvider.notifier).set(v),
           onAbrirOrden: () => mostrarOrdenSheet<OrdenPistas>(
@@ -363,10 +433,23 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
                             );
                           },
                         )
-                      : PistaListView(
-                          pistas: pistas,
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-                        ),
+                      : (vista == LibraryViewMode.lista
+                          ? PistaListView(
+                              pistas: pistas,
+                              padding:
+                                  const EdgeInsets.fromLTRB(14, 0, 14, 24),
+                            )
+                          : _grid(
+                              context,
+                              vista,
+                              pistas.length,
+                              (int i) => TrackGridCell(
+                                pista: pistas[i],
+                                onTap: () => ref
+                                    .read(playbackActionsProvider)
+                                    .reproducirColeccion(pistas, i),
+                              ),
+                            )),
                 ),
         ),
       ],

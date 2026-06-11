@@ -14,9 +14,9 @@ import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../offline/data/download_repository.dart';
 import '../../../player/application/playback.dart';
-import '../../../player/application/player_controller.dart';
 import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
+import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
 
 /// Detalle de álbum: portada, metadatos y lista de pistas.
@@ -33,8 +33,6 @@ class AlbumDetailScreen extends ConsumerWidget {
         ref.watch(pistasDeAlbumProvider(albumId)).value ?? const <Pista>[];
     final double total =
         pistas.fold<double>(0, (double a, Pista p) => a + p.duracionSeg);
-    final bool shuffle = ref
-        .watch(playerControllerProvider.select((PlayerState s) => s.shuffle));
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -127,7 +125,10 @@ class AlbumDetailScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: <Widget>[
                             _PlayButton(
                               onTap: pistas.isEmpty
@@ -136,19 +137,7 @@ class AlbumDetailScreen extends ConsumerWidget {
                                       .read(playbackActionsProvider)
                                       .reproducirColeccion(pistas, 0),
                             ),
-                            const SizedBox(width: 12),
-                            IconButton(
-                              tooltip: 'Reproducir aleatorio',
-                              onPressed: pistas.isEmpty
-                                  ? null
-                                  : () => ref
-                                      .read(playbackActionsProvider)
-                                      .reproducirColeccionAleatorio(pistas),
-                              icon: Icon(
-                                AppIcons.shuffle,
-                                color: shuffle ? c.accent : c.text2,
-                              ),
-                            ),
+                            ShuffleCollectionButton(pistas: pistas),
                             _AlbumDownloadButton(
                                 albumId: albumId, pistas: pistas),
                           ],

@@ -14,6 +14,7 @@ import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../application/library_providers.dart';
+import '../../application/playlist_covers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
 
@@ -27,8 +28,12 @@ class InicioScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String saludo = saludoPorHora(DateTime.now().hour);
+    final String nombre = ref.watch(nombrePerfilProvider);
+    // "Buenas noches, Nombre" si hay nombre; si no, solo el saludo.
+    final String saludoBase = saludoPorHora(DateTime.now().hour);
+    final String saludo = nombre.isEmpty ? saludoBase : '$saludoBase, $nombre';
     final String inicial = ref.watch(inicialPerfilProvider);
+    final ImageProvider? avatarFoto = ref.watch(avatarPerfilProvider);
     final List<Pista> recientes =
         ref.watch(recientesProvider).value ?? const <Pista>[];
     final List<Pista> masEscuchadas =
@@ -59,6 +64,7 @@ class InicioScreen extends ConsumerWidget {
             onProfile: () => context.push('/profile'),
             large: true,
             avatarInicial: inicial,
+            avatarFoto: avatarFoto,
           ),
           _BibliotecaVacia(onSync: () => context.push('/sync')),
         ],
@@ -82,11 +88,14 @@ class InicioScreen extends ConsumerWidget {
       for (final PlaylistLocal pl in playlistsLocales)
         _QuickItem(
           nombre: pl.nombre,
+          playlistId: pl.id,
+          local: true,
           onTap: () => context.push('/playlist-local/${pl.id}'),
         ),
       for (final Playlist pl in playlistsGuardadas)
         _QuickItem(
           nombre: pl.nombre,
+          playlistId: pl.id,
           onTap: () => context.push('/playlist/${pl.id}'),
         ),
     ];
@@ -377,21 +386,29 @@ class _QuickItem {
     required this.nombre,
     required this.onTap,
     this.corazon = false,
+    this.playlistId,
+    this.local = false,
   });
   final String nombre;
   final VoidCallback onTap;
   final bool corazon;
+
+  /// Id de la playlist (para resolver su portada); null en "Tus me gusta".
+  final int? playlistId;
+
+  /// True si es una playlist local del teléfono (decide de qué provider salen
+  /// sus pistas para la portada).
+  final bool local;
 }
 
 /// Rejilla compacta de accesos rápidos (2–3 columnas), estilo Spotify: tarjetas
-/// anchas con un cuadro + nombre, sin cargar mosaicos pesados en el Inicio.
+/// anchas con su portada real + nombre.
 class _QuickPicks extends StatelessWidget {
   const _QuickPicks({required this.items});
   final List<_QuickItem> items;
 
   @override
   Widget build(BuildContext context) {
-    final NbColors c = context.nb;
     final int max = context.countFor(6);
     final List<_QuickItem> visibles =
         items.length > max ? items.sublist(0, max) : items;
@@ -405,56 +422,97 @@ class _QuickPicks extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         children: <Widget>[
-          for (final _QuickItem it in visibles)
-            Material(
-              color: c.bg2,
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: it.onTap,
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: it.corazon ? null : c.bg3,
-                        gradient: it.corazon
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: <Color>[c.accent, c.ambient],
-                              )
-                            : null,
-                      ),
-                      child: Icon(
-                        it.corazon ? AppIcons.heartFilled : AppIcons.note,
-                        color: it.corazon ? c.ink : c.text2,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        it.nombre,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: NbFonts.ui,
-                          fontSize: 13 * context.uiScale,
-                          fontWeight: FontWeight.w700,
-                          height: 1.1,
-                          color: c.text,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+          for (final _QuickItem it in visibles) _QuickTile(item: it),
+        ],
+      ),
+    );
+  }
+}
+
+/// Una tarjeta de acceso rápido. Resuelve su portada: "Tus me gusta" usa el
+/// degradado con el corazón; una playlist usa la primera portada disponible de
+/// sus pistas (saltando las que no tengan), o el placeholder si ninguna tiene.
+class _QuickTile extends ConsumerWidget {
+  const _QuickTile({required this.item});
+  final _QuickItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final NbColors c = context.nb;
+    final Widget leading;
+    if (item.corazon) {
+      leading = Container(
+        width: 46,
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[c.accent, c.ambient],
+          ),
+        ),
+        child: Icon(AppIcons.heartFilled, color: c.ink, size: 20),
+      );
+    } else {
+      final List<Pista> pistas = item.playlistId == null
+          ? const <Pista>[]
+          : (item.local
+                  ? ref.watch(pistasDePlaylistLocalProvider(item.playlistId!))
+                  : ref.watch(pistasDePlaylistProvider(item.playlistId!)))
+              .value ??
+              const <Pista>[];
+      // Primera portada disponible (salta pistas sin portada); placeholder si
+      // ninguna tiene.
+      final List<String> distintas = portadasDistintas(pistas, max: 1);
+      final ImageProvider? cover = distintas.isEmpty
+          ? null
+          : ref
+              .watch(coverResolverProvider)
+              .imageFor(distintas.first, cacheWidth: coverCachePx(context, 46));
+      leading = Container(
+        width: 46,
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: c.bg3,
+          image: cover != null
+              ? DecorationImage(image: cover, fit: BoxFit.cover)
+              : null,
+        ),
+        child: cover != null
+            ? null
+            : Icon(AppIcons.note, color: c.text2, size: 20),
+      );
+    }
+
+    return Material(
+      color: c.bg2,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: item.onTap,
+        child: Row(
+          children: <Widget>[
+            leading,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                item.nombre,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 13 * context.uiScale,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  color: c.text,
                 ),
               ),
             ),
-        ],
+            const SizedBox(width: 8),
+          ],
+        ),
       ),
     );
   }

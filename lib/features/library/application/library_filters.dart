@@ -164,6 +164,92 @@ final NotifierProvider<OrdenPlaylistsNotifier, OrdenPlaylists>
     NotifierProvider<OrdenPlaylistsNotifier, OrdenPlaylists>(
         OrdenPlaylistsNotifier.new);
 
+// ── Modo de visualización persistido (uno por sección) ────────────────────────
+/// Aspecto con el que se muestra una sección de la biblioteca/playlists. El
+/// usuario lo elige (icono junto a los filtros) y se **persiste** por sección.
+enum LibraryViewMode {
+  lista,
+  gridPequena,
+  gridMediana;
+
+  String get etiqueta => switch (this) {
+        LibraryViewMode.lista => 'Lista',
+        LibraryViewMode.gridPequena => 'Cuadrícula pequeña',
+        LibraryViewMode.gridMediana => 'Cuadrícula mediana',
+      };
+}
+
+abstract class _VistaNotifier extends Notifier<LibraryViewMode> {
+  String get clave;
+  LibraryViewMode get inicial;
+
+  @override
+  LibraryViewMode build() {
+    _cargar();
+    return inicial;
+  }
+
+  Future<void> _cargar() async {
+    final String? v = await ref.read(syncStateDaoProvider).getValor(clave);
+    for (final LibraryViewMode m in LibraryViewMode.values) {
+      if (m.name == v) {
+        state = m;
+        return;
+      }
+    }
+  }
+
+  void seleccionar(LibraryViewMode m) {
+    state = m;
+    ref.read(syncStateDaoProvider).setValor(clave, m.name);
+  }
+}
+
+class VistaAlbumesNotifier extends _VistaNotifier {
+  @override
+  String get clave => 'vista_albumes';
+  @override
+  LibraryViewMode get inicial => LibraryViewMode.gridMediana;
+}
+
+class VistaArtistasNotifier extends _VistaNotifier {
+  @override
+  String get clave => 'vista_artistas';
+  @override
+  LibraryViewMode get inicial => LibraryViewMode.lista;
+}
+
+class VistaPistasNotifier extends _VistaNotifier {
+  @override
+  String get clave => 'vista_pistas';
+  @override
+  LibraryViewMode get inicial => LibraryViewMode.lista;
+}
+
+class VistaPlaylistsNotifier extends _VistaNotifier {
+  @override
+  String get clave => 'vista_playlists';
+  @override
+  LibraryViewMode get inicial => LibraryViewMode.gridMediana;
+}
+
+final NotifierProvider<VistaAlbumesNotifier, LibraryViewMode>
+    vistaAlbumesProvider =
+    NotifierProvider<VistaAlbumesNotifier, LibraryViewMode>(
+        VistaAlbumesNotifier.new);
+final NotifierProvider<VistaArtistasNotifier, LibraryViewMode>
+    vistaArtistasProvider =
+    NotifierProvider<VistaArtistasNotifier, LibraryViewMode>(
+        VistaArtistasNotifier.new);
+final NotifierProvider<VistaPistasNotifier, LibraryViewMode>
+    vistaPistasProvider =
+    NotifierProvider<VistaPistasNotifier, LibraryViewMode>(
+        VistaPistasNotifier.new);
+final NotifierProvider<VistaPlaylistsNotifier, LibraryViewMode>
+    vistaPlaylistsProvider =
+    NotifierProvider<VistaPlaylistsNotifier, LibraryViewMode>(
+        VistaPlaylistsNotifier.new);
+
 // ── Texto de búsqueda por sección (transitorio) ──────────────────────────────
 class TextoBusquedaNotifier extends Notifier<String> {
   @override

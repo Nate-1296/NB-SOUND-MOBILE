@@ -431,3 +431,61 @@ Cerrar reproductor con swipe-down; tocar línea de letra = seek; transferencia d
 vuelta PC→móvil; playlists en búsqueda + búsquedas recientes; "Tus me gusta" como
 colección; menú ⋮ en playlist local + aleatorio en playlists; autoplay/radio +
 sleep timer; separación "A continuación" vs "Siguiente desde contexto".
+
+---
+
+## Tanda de ajustes "afinado fino" (2026-06-11)
+
+Lote de 17 ajustes pedidos sobre la app ya en paridad. `analyze` limpio, 170
+tests, build release OK. Resumen por área:
+
+- **Inicio**: accesos rápidos con **portada real** (primera pista con portada de
+  la playlist; placeholder si ninguna) — `_QuickTile` resuelve la carátula.
+  Saludo con nombre: "Buenas noches, Nombre" si hay nombre (usa
+  `nombrePerfilProvider`).
+- **Bottom sheets** (menú ⋮ de pista, filtros de orden, velocidad, temporizador,
+  vista): nuevo helper `shared/widgets/sheet.dart::mostrarHojaMenu`
+  (`isScrollControlled` + `SafeArea` + `SingleChildScrollView` + tope 88% alto):
+  ya **no se cortan** por abajo aunque tengan muchas opciones (afecta también al
+  ⋮ del reproductor).
+- **Detalles (álbum/artista/playlist/local)**: la fila de acciones pasó a `Wrap`
+  (nunca desborda) y el botón aleatorio es ahora `ShuffleCollectionButton`
+  (estado coherente: acento si el aleatorio global está activo, + feedback en
+  snackbar). "Reproducir en…" añadido al ⋮ del reproductor.
+- **Modos de visualización** (`library_filters.dart::LibraryViewMode`
+  lista/grid pequeña/mediana, persistidos por sección): botón junto a los
+  filtros (`mostrarVistaSheet`). Álbumes/Pistas: lista (tiles) ↔ cuadrícula;
+  Artistas: lista ↔ cuadrícula **circular**; Playlists: lista ↔ cuadrícula.
+  Celdas de cuadrícula a prueba de desbordes (`_CoverGridCell` con
+  Expanded+AspectRatio).
+- **Portadas de playlist**: prefetch **al arrancar** (y tras el primer sync) de
+  todas las playlists vía `PlaylistCoverPrefetcher.prefetchPlaylists` (en
+  `NbSoundApp`), para que salgan instantáneas la primera vez.
+- **Buscar — historial real** (estilo Spotify): se guarda el **ítem** abierto
+  (pista/álbum/artista/playlist), no el texto (`recientes_busqueda.dart`,
+  `ItemBusqueda`, kv `busquedas_recientes_items`). Tocar un reciente reproduce la
+  pista sola o navega a la colección. Hooks `onOpen` en cards/tiles/`pistaRow`.
+- **Reproductor**: cerrar con **arrastre vertical interactivo** (sigue al dedo,
+  cierra pasado el umbral o vuelve con animación); **deslizar en horizontal**
+  cambia de vista (Portada↔Letra↔Cola), no de canción; botón de **pantalla
+  completa** de la letra (además del long-press).
+- **Ajustes**: Configuración con tiles **Temas** (`/temas`, los 63 a la vista) e
+  **Ícono de la app** (`/icono-app`). El tile "Sincronizar con PC" en General
+  refleja el **estado de conexión** (color + etiqueta).
+- **Ícono de la app conmutable de verdad** (Android): 63 PNG copiados a
+  `assets/app_icons/` (preview) y `res/drawable-nodpi/ic_app_*` (lanzador);
+  `tool/gen_icon_aliases.py` genera 1 alias por defecto + 63 `activity-alias`
+  (MainActivity ya **no** lleva el LAUNCHER; nunca se deshabilita). MethodChannel
+  `com.nbsound/app_icon` en `MainActivity.kt` conmuta habilitando el alias
+  elegido y deshabilitando el anterior (DONT_KILL_APP). `AppIconController`
+  persiste la elección (kv `icono_app`).
+- **Perfil**: más stats (álbumes, artistas, playlists, reproducciones, además de
+  pistas/favoritas/GB/karaoke), **nombre editable persistente** (no se
+  sobreescribe con el del PC: `PerfilUsuario`/`perfilUsuarioProvider`, kv
+  `nombre_usuario`) y **foto de perfil** (image_picker → copia a documentos, kv
+  `foto_perfil`; se muestra en TopBars/General/Perfil).
+- **Navegación**: los chevron de retroceso usan `context.pop()` de go_router (con
+  fallback a Inicio) en vez de `Navigator.maybePop` del navegador anidado, que no
+  devolvía al llegar a un detalle directo desde una pestaña.
+
+Dependencia nueva: `image_picker ^1.1.2`. Schema Drift sin cambios (todo kv).

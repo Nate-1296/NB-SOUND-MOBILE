@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/di/providers.dart';
 import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
@@ -18,9 +19,46 @@ import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../application/library_providers.dart';
+import '../../application/recientes_busqueda.dart';
 import '../../application/search_providers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
+
+// ── Registro de items reales en el historial de búsqueda (estilo Spotify) ───────
+void _regAlbum(WidgetRef ref, Album a) =>
+    ref.read(recientesBusquedaProvider.notifier).registrar(ItemBusqueda(
+          tipo: TipoItemBusqueda.album,
+          id: a.id,
+          titulo: a.titulo,
+          subtitulo: 'Álbum',
+          cover: a.coverPath,
+        ));
+
+void _regArtista(WidgetRef ref, Artista a) =>
+    ref.read(recientesBusquedaProvider.notifier).registrar(ItemBusqueda(
+          tipo: TipoItemBusqueda.artista,
+          id: a.id,
+          titulo: a.nombre,
+          subtitulo: 'Artista',
+          cover: a.imagenPath,
+        ));
+
+void _regPlaylist(WidgetRef ref, Playlist p) =>
+    ref.read(recientesBusquedaProvider.notifier).registrar(ItemBusqueda(
+          tipo: TipoItemBusqueda.playlist,
+          id: p.id,
+          titulo: p.nombre,
+          subtitulo: 'Playlist',
+        ));
+
+void _regPista(WidgetRef ref, Pista p) =>
+    ref.read(recientesBusquedaProvider.notifier).registrar(ItemBusqueda(
+          tipo: TipoItemBusqueda.pista,
+          id: p.id,
+          titulo: p.titulo,
+          subtitulo: 'Canción · ${p.artistaNombre}',
+          cover: p.coverPath,
+        ));
 
 /// Filtro por tipo en los resultados de búsqueda (estilo Spotify).
 enum _Filtro {
@@ -52,45 +90,46 @@ class BuscarScreen extends ConsumerStatefulWidget {
 class _BuscarScreenState extends ConsumerState<BuscarScreen> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
-  Timer? _registro;
   _Filtro _filtro = _Filtro.todo;
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _registro?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _onChanged(String v) {
-    // Debounce ligero: coalesce pulsaciones rápidas sin que se note lag.
+    // Debounce ligero: coalesce pulsaciones rápidas sin que se note lag. El
+    // historial ya NO guarda el texto: guarda el ítem que se abre (ver _reg*).
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 90), () {
       ref.read(busquedaQueryProvider.notifier).set(v);
     });
-    // Registro de la búsqueda (reciente) con más holgura: solo si tras escribir
-    // sigue habiendo texto con resultados (evita guardar tecleos intermedios).
-    _registro?.cancel();
-    _registro = Timer(const Duration(milliseconds: 1100), () {
-      if (v.trim().isNotEmpty &&
-          !ref.read(resultadosBusquedaProvider).estaVacio) {
-        ref.read(busquedasRecientesProvider.notifier).registrar(v);
-      }
-    });
   }
 
-  void _buscar(String q) {
-    _controller.text = q;
-    _controller.selection =
-        TextSelection.collapsed(offset: _controller.text.length);
-    ref.read(busquedaQueryProvider.notifier).set(q);
-    ref.read(busquedasRecientesProvider.notifier).registrar(q);
+  /// Abre un ítem del historial: la canción se reproduce sola (sin contexto), el
+  /// resto navega a su detalle. Como en Spotify.
+  Future<void> _abrirReciente(ItemBusqueda it) async {
+    switch (it.tipo) {
+      case TipoItemBusqueda.album:
+        context.push('/album/${it.id}');
+      case TipoItemBusqueda.artista:
+        context.push('/artist/${it.id}');
+      case TipoItemBusqueda.playlist:
+        context.push('/playlist/${it.id}');
+      case TipoItemBusqueda.pista:
+        final Map<int, Pista> m =
+            await ref.read(catalogDaoProvider).getPistasPorIds(<int>[it.id]);
+        final Pista? p = m[it.id];
+        if (p != null) {
+          await ref.read(playbackActionsProvider).reproducirPistaUnica(p);
+        }
+    }
   }
 
   void _limpiar() {
     _debounce?.cancel();
-    _registro?.cancel();
     _controller.clear();
     setState(() => _filtro = _Filtro.todo);
     ref.read(busquedaQueryProvider.notifier).set('');
@@ -120,18 +159,13 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
             title: 'Buscar',
             onProfile: () => context.push('/profile'),
             avatarInicial: ref.watch(inicialPerfilProvider),
+            avatarFoto: ref.watch(avatarPerfilProvider),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
             child: TextField(
               controller: _controller,
               onChanged: _onChanged,
-              onSubmitted: (String v) {
-                if (v.trim().isNotEmpty &&
-                    !ref.read(resultadosBusquedaProvider).estaVacio) {
-                  ref.read(busquedasRecientesProvider.notifier).registrar(v);
-                }
-              },
               textInputAction: TextInputAction.search,
               style: TextStyle(
                 fontFamily: NbFonts.ui,
@@ -171,7 +205,7 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
 
   Widget _body(String query, ResultadosBusqueda r) {
     if (query.trim().isEmpty) {
-      return _VacioRecientesExplora(onBuscar: _buscar);
+      return _VacioRecientesExplora(onAbrir: _abrirReciente);
     }
     if (r.estaVacio) {
       return const PlaceholderBody(
@@ -185,15 +219,20 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
       case _Filtro.canciones:
         slivers.add(SliverPadding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
-          sliver: PistaSliverList(pistas: r.pistas),
+          sliver: PistaSliverList(
+            pistas: r.pistas,
+            onOpen: (Pista p) => _regPista(ref, p),
+          ),
         ));
       case _Filtro.artistas:
         slivers.add(SliverPadding(
           padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
           sliver: SliverList.builder(
             itemCount: r.artistas.length,
-            itemBuilder: (BuildContext context, int i) =>
-                ArtistTile(artista: r.artistas[i]),
+            itemBuilder: (BuildContext context, int i) => ArtistTile(
+              artista: r.artistas[i],
+              onOpen: () => _regArtista(ref, r.artistas[i]),
+            ),
           ),
         ));
       case _Filtro.albums:
@@ -233,7 +272,10 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
                 slivers.add(
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-                    sliver: PistaSliverList(pistas: r.pistas),
+                    sliver: PistaSliverList(
+                      pistas: r.pistas,
+                      onOpen: (Pista p) => _regPista(ref, p),
+                    ),
                   ),
                 );
               }
@@ -257,7 +299,10 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
           childAspectRatio: 0.78,
         ),
         delegate: SliverChildBuilderDelegate(
-          (BuildContext context, int i) => AlbumCard(album: albums[i]),
+          (BuildContext context, int i) => AlbumCard(
+            album: albums[i],
+            onOpen: () => _regAlbum(ref, albums[i]),
+          ),
           childCount: albums.length,
         ),
       ),
@@ -275,7 +320,10 @@ class _BuscarScreenState extends ConsumerState<BuscarScreen> {
           childAspectRatio: 0.82,
         ),
         delegate: SliverChildBuilderDelegate(
-          (BuildContext context, int i) => PlaylistCard(playlist: playlists[i]),
+          (BuildContext context, int i) => PlaylistCard(
+            playlist: playlists[i],
+            onOpen: () => _regPlaylist(ref, playlists[i]),
+          ),
           childCount: playlists.length,
         ),
       ),
@@ -352,29 +400,40 @@ class _MejorResultado extends ConsumerWidget {
         subtitulo = 'Artista';
         img = resolver.imageFor(a.imagenPath, cacheWidth: px);
         circular = true;
-        onTap = () => context.push('/artist/${a.id}');
+        onTap = () {
+          _regArtista(ref, a);
+          context.push('/artist/${a.id}');
+        };
       case TipoResultado.albums:
         final Album a = r.albums.first;
         titulo = a.titulo;
         subtitulo = 'Álbum';
         img = resolver.imageFor(a.coverPath, cacheWidth: px);
         circular = false;
-        onTap = () => context.push('/album/${a.id}');
+        onTap = () {
+          _regAlbum(ref, a);
+          context.push('/album/${a.id}');
+        };
       case TipoResultado.playlists:
         final Playlist p = r.playlists.first;
         titulo = p.nombre;
         subtitulo = 'Playlist';
         img = null;
         circular = false;
-        onTap = () => context.push('/playlist/${p.id}');
+        onTap = () {
+          _regPlaylist(ref, p);
+          context.push('/playlist/${p.id}');
+        };
       case TipoResultado.pistas:
         final Pista p = r.pistas.first;
         titulo = p.titulo;
         subtitulo = 'Canción · ${p.artistaNombre}';
         img = resolver.imageFor(p.coverPath, cacheWidth: px);
         circular = false;
-        onTap = () =>
-            ref.read(playbackActionsProvider).reproducirColeccion(r.pistas, 0);
+        onTap = () {
+          _regPista(ref, p);
+          ref.read(playbackActionsProvider).reproducirColeccion(r.pistas, 0);
+        };
     }
 
     return Padding(
@@ -455,18 +514,20 @@ class _MejorResultado extends ConsumerWidget {
   }
 }
 
-/// Estado vacío de Buscar: búsquedas recientes (si hay) + "Explora tu biblioteca"
-/// (artistas y álbumes), en vez de un simple placeholder.
+/// Estado vacío de Buscar: historial de resultados **reales** (pista/álbum/
+/// artista/playlist) + "Explora tu biblioteca" (artistas y álbumes), en vez de un
+/// simple placeholder. Tocar un reciente lo reproduce (pista) o navega a él.
 class _VacioRecientesExplora extends ConsumerWidget {
-  const _VacioRecientesExplora({required this.onBuscar});
-  final ValueChanged<String> onBuscar;
+  const _VacioRecientesExplora({required this.onAbrir});
+  final ValueChanged<ItemBusqueda> onAbrir;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final List<String> recientes = ref.watch(busquedasRecientesProvider);
+    final List<ItemBusqueda> recientes = ref.watch(recientesBusquedaProvider);
     final List<Artista> artistas = ref.watch(topArtistasProvider);
     final List<Album> albums = ref.watch(exploraAlbumsProvider);
+    final CoverResolver resolver = ref.watch(coverResolverProvider);
 
     if (recientes.isEmpty && artistas.isEmpty && albums.isEmpty) {
       return const PlaceholderBody(
@@ -485,10 +546,10 @@ class _VacioRecientesExplora extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(18, 8, 12, 4),
             child: Row(
               children: <Widget>[
-                const Expanded(child: SectionHead(title: 'Búsquedas recientes')),
+                const Expanded(child: SectionHead(title: 'Recientes')),
                 TextButton(
                   onPressed: () =>
-                      ref.read(busquedasRecientesProvider.notifier).borrarTodo(),
+                      ref.read(recientesBusquedaProvider.notifier).borrarTodo(),
                   child: Text(
                     'Borrar',
                     style: TextStyle(color: c.text2, fontFamily: NbFonts.ui),
@@ -497,26 +558,13 @@ class _VacioRecientesExplora extends ConsumerWidget {
               ],
             ),
           ),
-          for (final String q in recientes)
-            ListTile(
-              dense: true,
-              onTap: () => onBuscar(q),
-              leading: Icon(AppIcons.clock, color: c.text3, size: 20),
-              title: Text(
-                q,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: NbFonts.ui,
-                  fontWeight: FontWeight.w600,
-                  color: c.text,
-                ),
-              ),
-              trailing: IconButton(
-                icon: Icon(AppIcons.close, color: c.text3, size: 18),
-                onPressed: () =>
-                    ref.read(busquedasRecientesProvider.notifier).borrar(q),
-              ),
+          for (final ItemBusqueda it in recientes)
+            _RecienteTile(
+              item: it,
+              resolver: resolver,
+              onTap: () => onAbrir(it),
+              onBorrar: () =>
+                  ref.read(recientesBusquedaProvider.notifier).borrar(it),
             ),
           const SizedBox(height: 8),
         ],
@@ -539,7 +587,7 @@ class _VacioRecientesExplora extends ConsumerWidget {
                 for (final Album a in albums.take(gridColumns(
                             MediaQuery.sizeOf(context).width) *
                         2))
-                  AlbumCard(album: a),
+                  AlbumCard(album: a, onOpen: () => _regAlbum(ref, a)),
               ],
             ),
           ),
@@ -549,13 +597,91 @@ class _VacioRecientesExplora extends ConsumerWidget {
   }
 }
 
+/// Fila de un resultado reciente del historial (thumb + título + tipo + ×).
+class _RecienteTile extends StatelessWidget {
+  const _RecienteTile({
+    required this.item,
+    required this.resolver,
+    required this.onTap,
+    required this.onBorrar,
+  });
+
+  final ItemBusqueda item;
+  final CoverResolver resolver;
+  final VoidCallback onTap;
+  final VoidCallback onBorrar;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    final ImageProvider? img = (item.cover == null)
+        ? null
+        : resolver.imageFor(item.cover, cacheWidth: coverCachePx(context, 44));
+    final Widget leading = item.circular
+        ? Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: c.bg3,
+              shape: BoxShape.circle,
+              image: img != null
+                  ? DecorationImage(image: img, fit: BoxFit.cover)
+                  : null,
+            ),
+            alignment: Alignment.center,
+            child: img == null ? Icon(AppIcons.user, color: c.text3) : null,
+          )
+        : (item.tipo == TipoItemBusqueda.playlist
+            ? Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: c.bg3,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(AppIcons.note, color: c.text3, size: 22),
+              )
+            : Cover(image: img, size: 44, radius: 8, shadow: false));
+    return ListTile(
+      dense: true,
+      onTap: onTap,
+      leading: leading,
+      title: Text(
+        item.titulo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: NbFonts.ui,
+          fontWeight: FontWeight.w600,
+          color: c.text,
+        ),
+      ),
+      subtitle: Text(
+        item.subtitulo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: NbFonts.ui,
+          fontSize: 12.5,
+          color: c.text3,
+        ),
+      ),
+      trailing: IconButton(
+        icon: Icon(AppIcons.close, color: c.text3, size: 18),
+        onPressed: onBorrar,
+      ),
+    );
+  }
+}
+
 /// Carrusel horizontal de artistas (círculos) en los resultados/explora.
-class _ArtistasRail extends StatelessWidget {
+class _ArtistasRail extends ConsumerWidget {
   const _ArtistasRail({required this.artistas});
   final List<Artista> artistas;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double s = context.cardScale;
     final double circulo = 104 * s;
     return Column(
@@ -572,8 +698,11 @@ class _ArtistasRail extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: artistas.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (BuildContext context, int i) =>
-                ArtistCircle(artista: artistas[i], size: circulo),
+            itemBuilder: (BuildContext context, int i) => ArtistCircle(
+              artista: artistas[i],
+              size: circulo,
+              onOpen: () => _regArtista(ref, artistas[i]),
+            ),
           ),
         ),
       ],
@@ -582,12 +711,12 @@ class _ArtistasRail extends StatelessWidget {
 }
 
 /// Carrusel horizontal de álbumes en los resultados.
-class _AlbumesRail extends StatelessWidget {
+class _AlbumesRail extends ConsumerWidget {
   const _AlbumesRail({required this.albums});
   final List<Album> albums;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double s = context.cardScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,8 +732,13 @@ class _AlbumesRail extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: albums.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (BuildContext context, int i) =>
-                SizedBox(width: 150 * s, child: AlbumCard(album: albums[i])),
+            itemBuilder: (BuildContext context, int i) => SizedBox(
+              width: 150 * s,
+              child: AlbumCard(
+                album: albums[i],
+                onOpen: () => _regAlbum(ref, albums[i]),
+              ),
+            ),
           ),
         ),
       ],
@@ -613,12 +747,12 @@ class _AlbumesRail extends StatelessWidget {
 }
 
 /// Carrusel horizontal de playlists en los resultados.
-class _PlaylistsRail extends StatelessWidget {
+class _PlaylistsRail extends ConsumerWidget {
   const _PlaylistsRail({required this.playlists});
   final List<Playlist> playlists;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double s = context.cardScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,8 +768,13 @@ class _PlaylistsRail extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             itemCount: playlists.length,
             separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (BuildContext context, int i) =>
-                SizedBox(width: 150 * s, child: PlaylistCard(playlist: playlists[i])),
+            itemBuilder: (BuildContext context, int i) => SizedBox(
+              width: 150 * s,
+              child: PlaylistCard(
+                playlist: playlists[i],
+                onOpen: () => _regPlaylist(ref, playlists[i]),
+              ),
+            ),
           ),
         ),
       ],

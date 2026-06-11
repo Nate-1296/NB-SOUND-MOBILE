@@ -18,12 +18,11 @@ class GeneralScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
-    final PerfilLocal? perfil = ref.watch(perfilProvider).value;
     final ConexionEstado conexion = ref.watch(conexionPcProvider);
+    final String nombreReal = ref.watch(nombrePerfilProvider);
+    final ImageProvider? foto = ref.watch(avatarPerfilProvider);
 
-    final String nombre = (perfil?.nombre.isNotEmpty ?? false)
-        ? perfil!.nombre
-        : 'NB Sound';
+    final String nombre = nombreReal.isEmpty ? 'NB Sound' : nombreReal;
     final String inicial = nombre.substring(0, 1).toUpperCase();
 
     final (Color colorEstado, IconData iconoEstado) = switch (conexion) {
@@ -54,16 +53,21 @@ class GeneralScreen extends ConsumerWidget {
                         color: c.soft,
                         shape: BoxShape.circle,
                         border: Border.all(color: c.line2, width: 1.5),
+                        image: foto != null
+                            ? DecorationImage(image: foto, fit: BoxFit.cover)
+                            : null,
                       ),
-                      child: Text(
-                        inicial,
-                        style: TextStyle(
-                          fontFamily: NbFonts.display,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: c.accent,
-                        ),
-                      ),
+                      child: foto != null
+                          ? null
+                          : Text(
+                              inicial,
+                              style: TextStyle(
+                                fontFamily: NbFonts.display,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: c.accent,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -110,7 +114,7 @@ class GeneralScreen extends ConsumerWidget {
             _Tile(
               icon: AppIcons.sliders,
               label: 'Configuración',
-              subtitle: 'Ecualizador y temas',
+              subtitle: 'Ecualizador, temas e ícono',
               onTap: () => context.push('/configuracion'),
             ),
             _Tile(
@@ -120,8 +124,11 @@ class GeneralScreen extends ConsumerWidget {
               onTap: () => mostrarSelectorDestino(context, ref),
             ),
             _Tile(
-              icon: AppIcons.sync,
+              icon: iconoEstado,
+              iconColor: colorEstado,
               label: 'Sincronizar con PC',
+              subtitle: conexion.etiqueta,
+              subtitleColor: colorEstado,
               onTap: () => context.push('/sync'),
             ),
             _Tile(
@@ -141,11 +148,15 @@ class _Tile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.subtitle,
+    this.subtitleColor,
+    this.iconColor,
     this.onTap,
   });
   final IconData icon;
   final String label;
   final String? subtitle;
+  final Color? subtitleColor;
+  final Color? iconColor;
   final VoidCallback? onTap;
 
   @override
@@ -153,7 +164,7 @@ class _Tile extends StatelessWidget {
     final NbColors c = context.nb;
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: c.text2, size: 22),
+      leading: Icon(icon, color: iconColor ?? c.text2, size: 22),
       title: Text(
         label,
         style: TextStyle(
@@ -170,7 +181,9 @@ class _Tile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: NbFonts.ui,
                 fontSize: 12.5,
-                color: c.text3,
+                fontWeight:
+                    subtitleColor != null ? FontWeight.w600 : FontWeight.w400,
+                color: subtitleColor ?? c.text3,
               ),
             ),
       trailing: Icon(AppIcons.chevronRight, color: c.text3, size: 20),

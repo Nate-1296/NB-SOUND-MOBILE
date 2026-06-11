@@ -11,6 +11,7 @@ import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
+import '../widgets/collection_actions.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
 
@@ -99,8 +100,11 @@ class ArtistDetailScreen extends ConsumerWidget {
                   ),
                   if (pistas.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: <Widget>[
                         FilledButton.icon(
                           onPressed: () => ref
@@ -123,14 +127,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          tooltip: 'Reproducir aleatorio',
-                          onPressed: () => ref
-                              .read(playbackActionsProvider)
-                              .reproducirColeccionAleatorio(pistas),
-                          icon: Icon(AppIcons.shuffle, color: c.text2),
-                        ),
+                        ShuffleCollectionButton(pistas: pistas),
                       ],
                     ),
                   ],

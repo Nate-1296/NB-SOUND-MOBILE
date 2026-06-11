@@ -15,6 +15,7 @@ import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_covers.dart';
+import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
 
 /// Detalle de playlist: mosaico, metadatos y pistas en orden.
@@ -101,7 +102,10 @@ class PlaylistDetailScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: <Widget>[
                             FilledButton.icon(
                               onPressed: pistas.isEmpty
@@ -128,17 +132,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: 'Reproducir aleatorio',
-                              onPressed: pistas.isEmpty
-                                  ? null
-                                  : () => ref
-                                      .read(playbackActionsProvider)
-                                      .reproducirColeccionAleatorio(pistas),
-                              icon: Icon(AppIcons.shuffle, color: c.text2),
-                            ),
-                            const SizedBox(width: 4),
+                            ShuffleCollectionButton(pistas: pistas),
                             _GuardarPlaylistButton(
                               playlistId: playlistId,
                               pistas: pistas,

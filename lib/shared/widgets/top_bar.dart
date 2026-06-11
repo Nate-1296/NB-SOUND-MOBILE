@@ -15,6 +15,7 @@ class TopBar extends StatelessWidget {
     this.trailing,
     this.large = false,
     this.avatarInicial = 'N',
+    this.avatarFoto,
   });
 
   final String title;
@@ -25,6 +26,9 @@ class TopBar extends StatelessWidget {
 
   /// Inicial mostrada en el avatar de perfil (la del nombre real si hay perfil).
   final String avatarInicial;
+
+  /// Foto de perfil (si el usuario eligió una); reemplaza a la inicial.
+  final ImageProvider? avatarFoto;
 
   @override
   Widget build(BuildContext context) {
@@ -46,16 +50,21 @@ class TopBar extends StatelessWidget {
                 color: c.bg3,
                 shape: BoxShape.circle,
                 border: Border.all(color: c.line2, width: 1.5),
+                image: avatarFoto != null
+                    ? DecorationImage(image: avatarFoto!, fit: BoxFit.cover)
+                    : null,
               ),
-              child: Text(
-                avatarInicial,
-                style: TextStyle(
-                  fontFamily: NbFonts.display,
-                  fontSize: 15 * scale,
-                  fontWeight: FontWeight.w800,
-                  color: c.accent,
-                ),
-              ),
+              child: avatarFoto != null
+                  ? null
+                  : Text(
+                      avatarInicial,
+                      style: TextStyle(
+                        fontFamily: NbFonts.display,
+                        fontSize: 15 * scale,
+                        fontWeight: FontWeight.w800,
+                        color: c.accent,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),

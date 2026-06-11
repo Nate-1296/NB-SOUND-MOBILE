@@ -39,13 +39,74 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with SingleTickerProviderStateMixin {
   _View _view = _View.portada;
   double? _seekDrag;
 
   /// En la vista Letra: oculta cabecera/controles para ver la letra a pantalla
-  /// completa. Se alterna tocando la letra; vuelve a false al cambiar de vista.
+  /// completa. Se alterna con el botón de pantalla completa o tocando la letra;
+  /// vuelve a false al cambiar de vista.
   bool _immersive = false;
+
+  /// Desplazamiento vertical del gesto de cerrar (arrastrar hacia abajo): el
+  /// reproductor sigue al dedo y solo se cierra si se suelta pasado el umbral;
+  /// si no, vuelve a su sitio con animación (estilo Apple/Spotify).
+  double _dragY = 0;
+  double _dragDesde = 0;
+  late final AnimationController _snap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..addListener(() {
+      setState(() => _dragY = _dragDesde * (1 - _snap.value));
+    });
+
+  /// Umbral (px) para cerrar al soltar; por debajo, vuelve arriba.
+  static const double _umbralCierre = 120;
+
+  @override
+  void dispose() {
+    _snap.dispose();
+    super.dispose();
+  }
+
+  void _cerrar() => Navigator.of(context).maybePop();
+
+  void _onVDragUpdate(DragUpdateDetails d) {
+    if (_snap.isAnimating) {
+      _snap.stop();
+    }
+    setState(() => _dragY = (_dragY + d.delta.dy).clamp(0.0, 10000.0));
+  }
+
+  void _onVDragEnd(DragEndDetails d) {
+    final double v = d.primaryVelocity ?? 0;
+    if (_dragY > _umbralCierre || v > 700) {
+      _cerrar();
+      return;
+    }
+    // Vuelve arriba con animación.
+    _dragDesde = _dragY;
+    _snap.forward(from: 0);
+  }
+
+  /// Cambia entre vistas (Portada ↔ Letra ↔ Cola) al deslizar en horizontal,
+  /// sin cambiar de canción. Avanza/retrocede una vista; no da la vuelta.
+  void _cambiarVista(DragEndDetails d) {
+    final double v = d.primaryVelocity ?? 0;
+    if (v.abs() < 200) {
+      return;
+    }
+    const List<_View> orden = _View.values;
+    final int i = orden.indexOf(_view);
+    final int next = (v < 0 ? i + 1 : i - 1).clamp(0, orden.length - 1);
+    if (next != i) {
+      setState(() {
+        _view = orden[next];
+        _immersive = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +150,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       body: Stack(
         children: <Widget>[
           _Ambient(cover: cover),
-          SafeArea(
+          Transform.translate(
+            offset: Offset(0, _dragY),
+            child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Column(
@@ -121,7 +184,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   ],
-                  Expanded(child: _central(c, pista, cover, player)),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      // Deslizar en horizontal cambia de vista (Portada/Letra/
+                      // Cola), no de canción.
+                      onHorizontalDragEnd: _cambiarVista,
+                      child: _central(c, pista, cover, player),
+                    ),
+                  ),
                   if (!immersive) ...<Widget>[
                     _meta(c, pista, esFav),
                     _scrubber(c, player),
@@ -132,6 +203,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ],
               ),
             ),
+          ),
           ),
         ],
       ),
@@ -175,11 +247,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ],
     );
     return GestureDetector(
-      onVerticalDragEnd: _cerrarSiArrastraAbajo,
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: _onVDragUpdate,
+      onVerticalDragEnd: _onVDragEnd,
       child: Row(
         children: <Widget>[
           IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: _cerrar,
             icon: Icon(AppIcons.chevronDown, color: c.text, size: 26),
           ),
           Expanded(
@@ -223,31 +297,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           280.0,
           MediaQuery.sizeOf(context).height * 0.46,
         );
-        // Desliza la portada hacia abajo para cerrar el reproductor (como Spotify).
+        // Arrastra la portada hacia abajo para cerrar (sigue al dedo; se cierra al
+        // soltar pasado el umbral, si no vuelve arriba).
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onVerticalDragEnd: _cerrarSiArrastraAbajo,
+          onVerticalDragUpdate: _onVDragUpdate,
+          onVerticalDragEnd: _onVDragEnd,
           child: Center(
             child: Cover(image: cover, size: lado, radius: 22),
           ),
         );
       case _View.letra:
-        // Mantén pulsada la letra para entrar/salir de pantalla completa; un toque
-        // sobre una línea salta a ese momento (ver `_Letra`).
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onLongPress: () => setState(() => _immersive = !_immersive),
-          child: _Letra(pistaId: pista.id),
+        // Botón de pantalla completa (oculta cabecera/controles para ver solo la
+        // letra). Mantener pulsada la letra hace lo mismo; un toque sobre una línea
+        // salta a ese momento (ver `_Letra`).
+        return Stack(
+          children: <Widget>[
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: () => setState(() => _immersive = !_immersive),
+              child: _Letra(pistaId: pista.id),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                tooltip: _immersive
+                    ? 'Salir de pantalla completa'
+                    : 'Letra a pantalla completa',
+                onPressed: () => setState(() => _immersive = !_immersive),
+                icon: Icon(
+                  _immersive ? AppIcons.fullscreenExit : AppIcons.fullscreen,
+                  color: c.text2,
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
         );
       case _View.cola:
         return _Cola(player: player);
-    }
-  }
-
-  /// Cierra el reproductor si el gesto vertical fue claramente hacia abajo.
-  void _cerrarSiArrastraAbajo(DragEndDetails d) {
-    if ((d.primaryVelocity ?? 0) > 320) {
-      Navigator.of(context).maybePop();
     }
   }
 

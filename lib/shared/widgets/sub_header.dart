@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/nb_colors.dart';
 import '../theme/nb_theme.dart';
@@ -28,7 +29,11 @@ class SubHeader extends StatelessWidget {
       child: Row(
         children: <Widget>[
           IconButton(
-            onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+            // go_router pop: respeta TODA la pila de navegación (incluido pasar
+            // de un detalle directo desde una pestaña, donde `Navigator.maybePop`
+            // del navegador anidado no tenía nada que sacar y la flecha no
+            // devolvía). Fallback a Inicio si no hay a dónde volver.
+            onPressed: onBack ?? () => _volver(context),
             icon: Icon(AppIcons.back, size: 24, color: c.text),
           ),
           const SizedBox(width: 4),
@@ -50,5 +55,15 @@ class SubHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Vuelve a la vista anterior usando go_router (no el navegador anidado); si no
+/// hay pila, va a Inicio.
+void _volver(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/inicio');
   }
 }

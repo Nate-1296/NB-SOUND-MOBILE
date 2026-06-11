@@ -37,6 +37,27 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
   /// Búsquedas recientes (JSON: lista de textos, recientes primero).
   static const String kBusquedasRecientes = 'busquedas_recientes';
 
+  /// Resultados recientes de búsqueda (JSON: lista de items reales —
+  /// pista/álbum/artista/playlist— recientes primero), estilo Spotify.
+  static const String kBusquedasRecientesItems = 'busquedas_recientes_items';
+
+  /// Nombre del usuario fijado a mano. Si está presente NO se sobrescribe con el
+  /// nombre del PC al sincronizar (decisión del usuario).
+  static const String kNombreUsuario = 'nombre_usuario';
+
+  /// Ruta local de la foto de perfil elegida por el usuario.
+  static const String kFotoPerfil = 'foto_perfil';
+
+  /// Clave del ícono de app activo (uno de los 63 temas, o `''` por defecto).
+  static const String kIconoApp = 'icono_app';
+
+  /// Modos de visualización persistidos de la biblioteca/playlists
+  /// (`lista`/`grid_pequena`/`grid_mediana`), uno por sección.
+  static const String kVistaAlbumes = 'vista_albumes';
+  static const String kVistaArtistas = 'vista_artistas';
+  static const String kVistaPistas = 'vista_pistas';
+  static const String kVistaPlaylists = 'vista_playlists';
+
   Stream<String?> watchValor(String clave) =>
       (select(syncEstado)..where((t) => t.clave.equals(clave)))
           .watchSingleOrNull()

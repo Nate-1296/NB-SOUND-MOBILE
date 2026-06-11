@@ -34,10 +34,6 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -65,6 +61,714 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>
             </intent-filter>
         </receiver>
+        <!-- AppIconStart -->
+        <!-- Generado por tool/gen_icon_aliases.py; no editar a mano. -->
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIconDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_acero_azul"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_acero_azul">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_amanecer_sintetico"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_amanecer_sintetico">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_ambar_calido"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_ambar_calido">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_arcilla_calida"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_arcilla_calida">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_arcilla_nocturna"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_arcilla_nocturna">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_aurora_boreal"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_aurora_boreal">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_aurora_rosa"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_aurora_rosa">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_blanco_editorial"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_blanco_editorial">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_bosque_mistico"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_bosque_mistico">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_bruma_artica"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_bruma_artica">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_cafe_nocturno"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_cafe_nocturno">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_carbono"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_carbono">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_carmesi_nocturno"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_carmesi_nocturno">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_cielo_coral"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_cielo_coral">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_circuito_verde"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_circuito_verde">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_cobalto_night"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_cobalto_night">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_cobre_oxidado"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_cobre_oxidado">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_coral_sunrise"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_coral_sunrise">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_cosmic_latte"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_cosmic_latte">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_crepusculo_violeta"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_crepusculo_violeta">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_desierto_dorado"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_desierto_dorado">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_electrico_voltaje"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_electrico_voltaje">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_esmeralda"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_esmeralda">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_frambuesa_dark"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_frambuesa_dark">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_fuego_solar"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_fuego_solar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_galaxia"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_galaxia">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_glacial"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_glacial">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_grafito_radioactivo"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_grafito_radioactivo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_hielo_oled"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_hielo_oled">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_indigo_profundo"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_indigo_profundo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_jade_nocturno"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_jade_nocturno">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_lava"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_lava">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_lima_suave"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_lima_suave">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_magma_violeta"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_magma_violeta">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_marfil_grafito"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_marfil_grafito">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_medianoche"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_medianoche">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_menta_fresh"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_menta_fresh">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_negro_puro"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_negro_puro">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_neon_citrico"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_neon_citrico">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_nieve"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_nieve">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_noche_arcade"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_noche_arcade">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_obsidiana_neon"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_obsidiana_neon">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_ocean_profundo"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_ocean_profundo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_oro_liquido"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_oro_liquido">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_oro_negro"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_oro_negro">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_oscuro_profundo"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_oscuro_profundo">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_plasma_morado"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_plasma_morado">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_prisma"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_prisma">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_rosa_polar"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_rosa_polar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_rosa_quimera"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_rosa_quimera">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_sakura_nocturno"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_sakura_nocturno">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_sangre_dragon"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_sangre_dragon">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_selva_neon"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_selva_neon">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_sepia"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_sepia">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_sombra_lima"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_sombra_lima">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_terminal_verde"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_terminal_verde">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_tinta_marina"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_tinta_marina">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_titanio"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_titanio">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_turquesa_electrica"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_turquesa_electrica">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_ultra_violeta"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_ultra_violeta">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_vampiro_royal"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_vampiro_royal">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_violeta_laser"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_violeta_laser">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_zafiro_medianoche"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_zafiro_medianoche">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <!-- AppIconEnd -->
+
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

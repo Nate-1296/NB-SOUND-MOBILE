@@ -7,6 +7,7 @@ import '../../../../data/db/database.dart';
 import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/widgets/app_icons.dart';
+import '../../../../shared/widgets/sheet.dart';
 import '../../../../shared/widgets/track_row.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
@@ -14,6 +15,7 @@ import '../../../player/application/playback.dart';
 import '../../../player/application/player_controller.dart';
 import '../../../player/application/sleep_timer.dart';
 import '../../../remote_control/application/remote_controller.dart';
+import '../../../remote_control/presentation/destination_sheet.dart';
 import '../../application/library_providers.dart';
 import 'playlist_dialogs.dart';
 
@@ -48,6 +50,7 @@ Widget pistaRow(
   bool comoColeccion = true,
   bool numbered = false,
   bool showCover = true,
+  void Function(Pista)? onOpen,
 }) {
   final Pista p = pistas[i];
   return TrackRow(
@@ -66,6 +69,7 @@ Widget pistaRow(
     liked: deps.favoritas.contains(p.id),
     downloaded: deps.descargadas.contains(p.id),
     onTap: () {
+      onOpen?.call(p);
       final PlaybackActions acciones = ref.read(playbackActionsProvider);
       if (comoColeccion) {
         acciones.reproducirColeccion(pistas, i);
@@ -169,12 +173,16 @@ class PistaSliverList extends ConsumerWidget {
     this.comoColeccion = true,
     this.numbered = false,
     this.showCover = true,
+    this.onOpen,
   });
 
   final List<Pista> pistas;
   final bool comoColeccion;
   final bool numbered;
   final bool showCover;
+
+  /// Efecto secundario al tocar una fila (p. ej. registrar en el historial).
+  final void Function(Pista)? onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -190,6 +198,7 @@ class PistaSliverList extends ConsumerWidget {
         comoColeccion: comoColeccion,
         numbered: numbered,
         showCover: showCover,
+        onOpen: onOpen,
       ),
     );
   }
@@ -215,14 +224,10 @@ Future<void> mostrarMenuPista(
       .contains(pista.id);
   final bool enPc = ref.read(playbackTargetProvider) == PlaybackTarget.remote &&
       ref.read(remoteControllerProvider).conectado;
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: c.bg2,
-    showDragHandle: true,
-    useRootNavigator: true,
+  return mostrarHojaMenu<void>(
+    context,
     builder: (BuildContext sheetContext) {
-      return SafeArea(
-        child: Column(
+      return Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Padding(
@@ -422,6 +427,21 @@ Future<void> mostrarMenuPista(
             ],
             if (ajustesReproductor) ...<Widget>[
               ListTile(
+                leading: Icon(AppIcons.cast, color: c.text),
+                title: Text(
+                  'Reproducir en…',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  mostrarSelectorDestino(context, ref);
+                },
+              ),
+              ListTile(
                 leading: Icon(AppIcons.sliders, color: c.text),
                 title: Text(
                   'Velocidad',
@@ -469,8 +489,7 @@ Future<void> mostrarMenuPista(
                 },
               ),
           ],
-        ),
-      );
+        );
     },
   );
 }
@@ -485,15 +504,11 @@ Future<void> mostrarMenuColeccion(
   List<Pista> pistas, {
   List<AccionMenuPista> extras = const <AccionMenuPista>[],
 }) {
-  final NbColors c = context.nb;
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: c.bg2,
-    showDragHandle: true,
-    useRootNavigator: true,
+  return mostrarHojaMenu<void>(
+    context,
     builder: (BuildContext sheetContext) {
-      return SafeArea(
-        child: Column(
+      final NbColors c = sheetContext.nb;
+      return Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             ListTile(
@@ -533,8 +548,7 @@ Future<void> mostrarMenuColeccion(
               ),
             const SizedBox(height: 8),
           ],
-        ),
-      );
+        );
     },
   );
 }
@@ -561,18 +575,14 @@ String _fmtVel(double v) =>
 /// Hoja de velocidad de reproducción.
 void _mostrarVelocidad(BuildContext context, WidgetRef ref) {
   final NbColors c = context.nb;
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: c.bg2,
-    showDragHandle: true,
-    useRootNavigator: true,
+  mostrarHojaMenu<void>(
+    context,
     builder: (BuildContext sheetContext) {
       return Consumer(
         builder: (BuildContext ctx, WidgetRef r, _) {
           final double actual = r.watch(
               playerControllerProvider.select((PlayerState s) => s.velocidad));
-          return SafeArea(
-            child: Column(
+          return Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 _tituloHoja(c, 'Velocidad'),
@@ -610,8 +620,7 @@ void _mostrarVelocidad(BuildContext context, WidgetRef ref) {
                   ),
                 const SizedBox(height: 8),
               ],
-            ),
-          );
+            );
         },
       );
     },
@@ -621,17 +630,13 @@ void _mostrarVelocidad(BuildContext context, WidgetRef ref) {
 /// Hoja del temporizador de apagado.
 void _mostrarTemporizador(BuildContext context, WidgetRef ref) {
   final NbColors c = context.nb;
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: c.bg2,
-    showDragHandle: true,
-    useRootNavigator: true,
+  mostrarHojaMenu<void>(
+    context,
     builder: (BuildContext sheetContext) {
       return Consumer(
         builder: (BuildContext ctx, WidgetRef r, _) {
           final Duration? activo = r.watch(sleepTimerProvider);
-          return SafeArea(
-            child: Column(
+          return Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 _tituloHoja(c, 'Temporizador de apagado'),
@@ -676,8 +681,7 @@ void _mostrarTemporizador(BuildContext context, WidgetRef ref) {
                   ),
                 const SizedBox(height: 8),
               ],
-            ),
-          );
+            );
         },
       );
     },
