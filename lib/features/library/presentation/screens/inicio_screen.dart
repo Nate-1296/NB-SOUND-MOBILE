@@ -108,6 +108,7 @@ class InicioScreen extends ConsumerWidget {
           onProfile: () => context.push('/profile'),
           large: true,
           avatarInicial: inicial,
+          avatarFoto: avatarFoto,
         ),
         if (quick.isNotEmpty) _QuickPicks(items: quick),
         if (recientes.isNotEmpty)

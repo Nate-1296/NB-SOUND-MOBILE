@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/chip_pill.dart';
 import '../../../../shared/widgets/top_bar.dart';
 import '../../../offline/application/download_providers.dart';
+import '../../../offline/presentation/download_actions.dart';
 import '../../../player/application/playback.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../application/library_filters.dart';
@@ -267,16 +268,20 @@ class _PistasSeccionState extends ConsumerState<_PistasSeccion> {
 
   void _descargar() {
     final DownloadQueueController q = ref.read(downloadQueueProvider.notifier);
-    final int n = _sel.length;
-    for (final int id in _sel) {
-      q.encolarPista(id);
-    }
+    final List<int> ids = _sel.toList();
+    final int n = ids.length;
     _salir();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$n pista${n == 1 ? '' : 's'} en descarga.')),
-      );
-    }
+    // Avisa si no hay PC emparejado / sin conexión, igual que el resto de la app.
+    encolarConAviso(
+      context,
+      ref,
+      () async {
+        for (final int id in ids) {
+          await q.encolarPista(id);
+        }
+      },
+      exito: '$n pista${n == 1 ? '' : 's'} en descarga.',
+    );
   }
 
   @override
