@@ -335,6 +335,7 @@ Future<void> _guardarPresetActual(
       ],
     ),
   );
+  controller.dispose();
   if (nombre != null && nombre.isNotEmpty) {
     ctrl.guardarPreset(nombre);
   }

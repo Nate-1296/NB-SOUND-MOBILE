@@ -235,6 +235,7 @@ class PerfilScreen extends ConsumerWidget {
         ],
       ),
     );
+    ctrl.dispose();
     if (nuevo != null) {
       await ref.read(perfilUsuarioProvider.notifier).setNombre(nuevo);
     }

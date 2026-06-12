@@ -72,7 +72,8 @@ Future<String?> pedirNombrePlaylist(
         ],
       );
     },
-  );
+    // Libera el controller al cerrarse el diálogo (evita la fuga).
+  ).whenComplete(ctrl.dispose);
 }
 
 /// Diálogo para editar nombre + descripción de una playlist local. Devuelve el
@@ -150,7 +151,11 @@ Future<({String nombre, String descripcion})?> editarDetallesPlaylist(
         ],
       );
     },
-  );
+    // Libera ambos controllers al cerrarse el diálogo (evita la fuga).
+  ).whenComplete(() {
+    nombreCtrl.dispose();
+    descCtrl.dispose();
+  });
 }
 
 /// Crea una playlist local preguntando el nombre. Devuelve su id, o null.

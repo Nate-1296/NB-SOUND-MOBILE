@@ -240,7 +240,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       // Deslizar en horizontal cambia de vista (Portada/Letra/
                       // Cola), no de canción.
                       onHorizontalDragEnd: _cambiarVista,
-                      child: _central(c, pista, cover, player),
+                      child: _central(pista, cover, player),
                     ),
                   ),
                   if (!immersive) ...<Widget>[
@@ -334,7 +334,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Widget _central(
-    NbColors c,
     Pista pista,
     ImageProvider? cover,
     PlayerState player,

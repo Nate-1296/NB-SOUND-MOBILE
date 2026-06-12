@@ -242,7 +242,51 @@ Cierre del flujo de descargas y mantenimiento en vivo (`flutter analyze` limpio,
 - **Connect (Spotify-like)**: traspaso bidireccional de estado y **un solo
   dispositivo suena** — ver [`remote-control.md`](remote-control.md#transición-de-destino).
 
+## Botón atrás del sistema + revisión quirúrgica (2026-06-12)
+
+`flutter analyze` limpio · **186 tests** verdes.
+
+- **Botón atrás del sistema (Android)**: `PopScope` en `AppShell` con decisión
+  pura `decidirAtras` (testeada). Inicio es la base: desde cualquier otra pestaña
+  el atrás vuelve a **Inicio**; en Inicio el primer atrás avisa "Pulsa atrás de
+  nuevo para salir" y el segundo (≤2 s) **sale de la app**. No interfiere con el
+  atrás de Buscar (limpia la búsqueda, navegador de rama) ni con las pantallas de
+  detalle/reproductor (popean normal en el navegador raíz).
+- **Foto de perfil en Inicio**: la `TopBar` de Inicio no pasaba `avatarFoto`
+  (salía el placeholder con la inicial); corregido — ya muestra la foto como el
+  resto de vistas.
+- **Descargas**: la selección múltiple de Biblioteca también pasa por
+  `encolarConAviso` (avisa si no hay PC / sin conexión), unificando el criterio.
+- **Revisión quirúrgica (limpieza)**: liberadas 4 fugas de `TextEditingController`
+  de diálogos (`pedirNombrePlaylist`/`editarDetallesPlaylist`/perfil `_editarNombre`/
+  ecualizador `_guardarPresetActual`, con `whenComplete(dispose)` o `dispose()`
+  tras el `await`); eliminado un parámetro muerto en el reproductor. Auditados sin
+  hallazgos: consistencia de `avatarFoto` (5/5) y de los botones Aleatorio (5/5),
+  enrutado de reproducción por la fachada `PlaybackActions` (Connect), ausencia de
+  force-unwraps/`.value!`/índices sin guarda, cobertura de `dispose`.
+
 ## No hecho / pendiente
+
+### Pendientes reales (próximo trabajo, decididos con el usuario)
+
+- **Connect real bidireccional (PC ↔ celular)**: falta la **parte compleja** de
+  Spotify Connect validada contra el escritorio real — que un cambio en el PC
+  (cambiar de canción, pausar, seek, encolar, volumen/shuffle/repeat) se refleje
+  en el celular y viceversa, en tiempo real, con reconexión. Hoy el móvil refleja
+  el frame `estado` del PC y el **traspaso de destino** ya pausa el otro
+  dispositivo y transfiere pista/posición/estado (`playback.usarLocal/usarRemoto`,
+  `planTraspasoLocal`, `reproducirIdRemota`), pero todo está probado **solo contra
+  simulaciones**. Requiere encender el PC, probar ambos lados a la vez y corregir
+  desajustes del protocolo (`pc-contract.md` §5), posiblemente con cambios del
+  escritorio (`nb_sound`, que commitea el usuario).
+- **Música local del celular (dos bibliotecas en una)**: hoy la app depende
+  **100% del PC**. Falta detectar e integrar la música **local del teléfono** como
+  una **segunda biblioteca** dentro de la misma app (escaneo + metadata + permisos
+  de almacenamiento Android), conviviendo con el catálogo del PC. Debe vivir en una
+  capa aparte (igual que la capa offline), sin pisar el catálogo Drift, que es
+  espejo limpio del PC.
+
+### Otros pendientes
 
 - **iOS**: no compilado (requiere macOS). Solo Android verificado.
 - **Tienda**: falta App Bundle (`flutter build appbundle`) + alta en Play; la
