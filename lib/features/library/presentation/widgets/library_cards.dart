@@ -399,44 +399,49 @@ class _PlaylistCardBase extends StatelessWidget {
         context.push(ruta);
       },
       onLongPress: onLongPress,
+      // La portada va en un `Expanded` (se encoge para ceder espacio al texto),
+      // así la celda nunca desborda sea cual sea el nº de columnas (la cuadrícula
+      // pequeña antes superponía el "N pistas" bajo la carátula).
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          AspectRatio(
-            aspectRatio: 1,
-            child: Stack(
-              children: <Widget>[
-                Positioned.fill(
-                  child: covers.length >= 4
-                      ? CoverMosaic(
-                          images: covers, size: double.infinity, radius: 14)
-                      : Cover(
-                          image: covers.isNotEmpty ? covers.first : null,
-                          size: double.infinity,
-                          radius: 14,
-                          overlay: covers.isEmpty
-                              ? Center(
-                                  child: Icon(AppIcons.note,
-                                      color: c.text3, size: 34),
-                                )
-                              : null,
-                        ),
-                ),
-                if (pinned)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: c.bg.withValues(alpha: 0.7),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(AppIcons.pinFilled, color: c.accent, size: 14),
-                    ),
+          Expanded(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: covers.length >= 4
+                        ? CoverMosaic(
+                            images: covers, size: double.infinity, radius: 14)
+                        : Cover(
+                            image: covers.isNotEmpty ? covers.first : null,
+                            size: double.infinity,
+                            radius: 14,
+                            overlay: covers.isEmpty
+                                ? Center(
+                                    child: Icon(AppIcons.note,
+                                        color: c.text3, size: 34),
+                                  )
+                                : null,
+                          ),
                   ),
-              ],
+                  if (pinned)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: c.bg.withValues(alpha: 0.7),
+                          shape: BoxShape.circle,
+                        ),
+                        child:
+                            Icon(AppIcons.pinFilled, color: c.accent, size: 14),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -453,6 +458,8 @@ class _PlaylistCardBase extends StatelessWidget {
           ),
           Text(
             subtitulo,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: NbFonts.ui,
               fontSize: 12,
@@ -679,6 +686,119 @@ class LocalPlaylistTile extends ConsumerWidget {
       ruta: '/playlist-local/${playlist.id}',
       onLongPress: onLongPress,
       pinned: pinned,
+    );
+  }
+}
+
+/// Tarjeta de la playlist automática "Tus me gusta" (favoritas), con el degradado
+/// y el corazón de marca. Navega a `/favoritas`. Misma estructura que las demás
+/// tarjetas (portada en `Expanded` + nombre + conteo), para encajar en la rejilla
+/// de Playlists sin desbordar.
+class MeGustaCard extends StatelessWidget {
+  const MeGustaCard({super.key, required this.conteo});
+
+  final int conteo;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return GestureDetector(
+      onTap: () => context.push('/favoritas'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[c.accent, c.ambient],
+                  ),
+                ),
+                child: Center(
+                  child: Icon(AppIcons.heartFilled, color: c.ink, size: 34),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tus me gusta',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: NbFonts.ui,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: c.text,
+            ),
+          ),
+          Text(
+            '$conteo pistas',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: NbFonts.ui,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: c.text3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fila (modo lista) de "Tus me gusta": miniatura con degradado + corazón.
+class MeGustaTile extends StatelessWidget {
+  const MeGustaTile({super.key, required this.conteo});
+
+  final int conteo;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return ListTile(
+      onTap: () => context.push('/favoritas'),
+      leading: Container(
+        width: 52,
+        height: 52,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[c.accent, c.ambient],
+          ),
+        ),
+        child: Icon(AppIcons.heartFilled, color: c.ink, size: 24),
+      ),
+      title: Text(
+        'Tus me gusta',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: NbFonts.ui,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: c.text,
+        ),
+      ),
+      subtitle: Text(
+        '$conteo pistas',
+        style: TextStyle(
+          fontFamily: NbFonts.ui,
+          fontSize: 12.5,
+          color: c.text3,
+        ),
+      ),
+      trailing: Icon(AppIcons.chevronRight, color: c.text3, size: 20),
     );
   }
 }

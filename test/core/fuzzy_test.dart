@@ -13,6 +13,24 @@ void main() {
       expect(normalizar(''), '');
       expect(normalizar('—··—'), '');
     });
+    test('los apóstrofes no parten palabras (símbolos perdonados)', () {
+      // "Ain't" y "aint" deben normalizar igual para que la búsqueda perdone el
+      // apóstrofe (recto o tipográfico).
+      expect(normalizar("If It Ain't Me"), 'if it aint me');
+      expect(normalizar('If It Ain’t Me'), 'if it aint me');
+      expect(normalizar('if it aint me'), 'if it aint me');
+      expect(normalizar("Don't"), 'dont');
+    });
+  });
+
+  group("búsqueda perdona apóstrofes (caso del usuario)", () {
+    test('"if it aint me" encuentra "If It Ain\'t Me"', () {
+      final String objetivo = normalizar("If It Ain't Me");
+      final List<String> tokens = tokenizar(objetivo);
+      // Sin apóstrofe en la query coincide exactamente (1.0); con apóstrofe igual.
+      expect(puntuarTexto(normalizar('if it aint me'), objetivo, tokens), 1.0);
+      expect(puntuarTexto(normalizar("if it ain't me"), objetivo, tokens), 1.0);
+    });
   });
 
   group('distanciaAcotada', () {

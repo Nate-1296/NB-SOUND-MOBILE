@@ -30,6 +30,9 @@ dependencies:
 
   # --- Imágenes: caché en disco/memoria + redimensionado de portadas remotas ---
   cached_network_image: ^3.4.1
+  # Caché en disco configurable (vida larga + muchos objetos) para que las
+  # portadas no se re-descarguen al volver a entrar a una vista.
+  flutter_cache_manager: ^3.4.1
 
   # --- Red: sync (HTTP) + control remoto (WebSocket) ---
   dio: ^5.9.2

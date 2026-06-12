@@ -670,6 +670,10 @@ class _Connected extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Consejos sencillos cuando no conecta o falla la sincronización
+                // (al tocar Sincronizar / Reintentar conexión y seguir sin éxito).
+                if (conexion != ConexionEstado.conectado || s.syncError != null)
+                  const _TipsConexion(),
                 if (conexion == ConexionEstado.desconectado) ...<Widget>[
                   const SizedBox(height: 12),
                   SizedBox(
@@ -777,6 +781,75 @@ class _Connected extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Lista de comprobaciones sencillas cuando no se logra conectar/sincronizar.
+class _TipsConexion extends StatelessWidget {
+  const _TipsConexion();
+
+  static const List<String> _tips = <String>[
+    'Abre NB Sound en tu PC.',
+    'Conecta el PC y el celular a la misma red Wi-Fi.',
+    'En el PC, entra a la pestaña Sincronización (el servidor debe estar '
+        'encendido).',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.bg2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(AppIcons.wifi, size: 16, color: c.text2),
+              const SizedBox(width: 8),
+              Text(
+                'Si no conecta, revisa:',
+                style: TextStyle(
+                  fontFamily: NbFonts.ui,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: c.text,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final String tip in _tips)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('•  ',
+                      style: TextStyle(color: c.accent, fontFamily: NbFonts.ui)),
+                  Expanded(
+                    child: Text(
+                      tip,
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontSize: 13,
+                        height: 1.4,
+                        color: c.text2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

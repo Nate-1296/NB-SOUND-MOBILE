@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/util/media_source.dart';
 import '../../sync/application/remote_media_provider.dart';
+import '../data/cover_cache.dart';
 import '../data/offline_store.dart';
 import 'download_providers.dart';
 
@@ -26,12 +28,18 @@ class CoverResolver {
     required this.coversLocales,
     required this.artistasLocales,
     this.remote,
+    this.cacheManager,
   });
 
   final OfflineStore store;
   final Set<int> coversLocales;
   final Set<int> artistasLocales;
   final RemoteMedia? remote;
+
+  /// Gestor de caché en disco de las portadas remotas (vida larga). Lo inyecta el
+  /// provider con [CoverCache.instance]; si es null se usa el por defecto de
+  /// `cached_network_image` (los tests no lo pasan para no tocar path_provider).
+  final BaseCacheManager? cacheManager;
 
   ImageProvider? imageFor(String? path, {int? cacheWidth}) {
     final ImageProvider? base = _base(path);
@@ -65,7 +73,7 @@ class CoverResolver {
       return _remoteOrNull(path);
     }
     if (path.startsWith('http')) {
-      return CachedNetworkImageProvider(path);
+      return CachedNetworkImageProvider(path, cacheManager: cacheManager);
     }
     if (path.startsWith('/api/')) {
       return _remoteOrNull(path);
@@ -82,6 +90,7 @@ class CoverResolver {
     return CachedNetworkImageProvider(
       r.urlFor(relativeOrAbsolute),
       headers: r.authHeaders,
+      cacheManager: cacheManager,
     );
   }
 
@@ -105,5 +114,6 @@ final Provider<CoverResolver> coverResolverProvider =
     artistasLocales:
         ref.watch(artistasDescargadosProvider).value ?? const <int>{},
     remote: ref.watch(remoteMediaProvider),
+    cacheManager: CoverCache.instance,
   );
 });

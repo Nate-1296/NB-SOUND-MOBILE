@@ -369,7 +369,8 @@ class PlayerController extends Notifier<PlayerState> {
   }
 
   /// Añade una colección entera al final de la cola. Si no hay nada sonando,
-  /// arranca la colección.
+  /// arranca la colección. Encola en **un solo lote** (no N operaciones), para
+  /// que encolar un álbum/artista no bloquee la UI.
   Future<void> encolarColeccion(List<Pista> pistas) async {
     if (pistas.isEmpty) {
       return;
@@ -380,9 +381,7 @@ class PlayerController extends Notifier<PlayerState> {
     }
     _handler.remote = ref.read(remoteMediaProvider);
     final List<Pista> resueltas = await _resolverFuentes(pistas);
-    for (final Pista p in resueltas) {
-      await _handler.addToQueueEnd(p);
-    }
+    await _handler.addAllToQueueEnd(resueltas);
     state = state.copyWith(queue: <Pista>[...state.queue, ...pistas]);
     guardarSesion();
   }
@@ -564,9 +563,8 @@ class PlayerController extends Notifier<PlayerState> {
         catalogo: catalogo,
         excluir: excluir,
       );
-      for (final Pista p in extra) {
-        await addToQueue(p);
-      }
+      // Encola la tanda de "radio" en un solo lote (no pista a pista).
+      await encolarColeccion(extra);
     } finally {
       _autoplayCargando = false;
     }

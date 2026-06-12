@@ -265,6 +265,36 @@ Cierre del flujo de descargas y mantenimiento en vivo (`flutter analyze` limpio,
   enrutado de reproducción por la fachada `PlaybackActions` (Connect), ausencia de
   force-unwraps/`.value!`/índices sin guarda, cobertura de `dispose`.
 
+## Ronda final de pulido + optimización (2026-06-12)
+
+`flutter analyze` limpio · **188 tests** verdes.
+
+- **Playlists · cuadrícula pequeña**: la tarjeta de playlist ya no superpone el
+  "N pistas" bajo la carátula — la portada va en un `Expanded` (se encoge para
+  ceder espacio al texto), válido para cualquier nº de columnas.
+- **Playlists · "Tus me gusta"**: la playlist automática de favoritas aparece
+  arriba de "Tus playlists" (no solo en Inicio), con su degradado + corazón
+  (`MeGustaCard`/`MeGustaTile` → `/favoritas`). Cuenta como contenido (no muestra
+  el estado vacío si hay favoritas).
+- **Búsqueda · perdona apóstrofes**: `normalizar` (fuzzy) ahora **elimina** los
+  apóstrofes/comillas simples en vez de convertirlos en espacio, así "Ain't" y
+  "aint" coinciden ("If It Ain't Me" se encuentra con "if it aint me"). El resto
+  de símbolos ya se colapsaba a espacio.
+- **Reproductor · letra**: el pellizco **solo entra/sale** de pantalla completa
+  (no agranda la letra) — abrir los dedos entra, cerrarlos sale, como el
+  long-press pero por gesto.
+- **Sincronizar · avisos**: panel de consejos ("Abre NB Sound en tu PC",
+  "Misma red Wi-Fi", "Pestaña Sincronización con el servidor encendido") cuando
+  no conecta o falla la sincronización.
+- **Optimización**:
+  - **Carátulas que no se re-descargan**: gestor de caché propio
+    `CoverCache` (flutter_cache_manager, 10 000 objetos · 365 días) inyectado en
+    `CoverResolver`; + caché de imágenes en RAM ampliada (200 MB) en `main`. Menos
+    "parpadeo" al reentrar a una vista.
+  - **Encolar en lote**: `NbAudioHandler.addAllToQueueEnd` (una difusión + una
+    llamada al player) en vez de N operaciones; lo usan `encolarColeccion` y el
+    autoplay. Encolar un álbum/artista deja de bloquear la UI.
+
 ## No hecho / pendiente
 
 ### Pendientes reales (próximo trabajo, decididos con el usuario)

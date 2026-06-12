@@ -50,21 +50,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// vuelve a false al cambiar de vista.
   bool _immersive = false;
 
-  /// Factor de zoom de la letra (1.0–2.6), controlado por el gesto de pellizco.
-  double _letraZoom = 1.0;
-
-  /// Punteros activos sobre la letra y referencia del pellizco (distancia y zoom
-  /// al iniciar el gesto de 2 dedos). Se usan punteros crudos (`Listener`) para
-  /// no competir en la arena de gestos con el scroll ni el cambio de vista.
+  /// Punteros activos sobre la letra y la distancia de referencia del pellizco
+  /// (gesto de 2 dedos). Se usan punteros crudos (`Listener`) para no competir en
+  /// la arena de gestos con el scroll ni el cambio de vista. El pellizco SOLO
+  /// entra/sale del modo inmersivo (NO agranda la letra): abrir los dedos entra a
+  /// pantalla completa, cerrarlos sale — como el long-press, pero por gesto.
   final Map<int, Offset> _punteros = <int, Offset>{};
   double? _pinchBaseDist;
-  double _pinchBaseZoom = 1.0;
 
   void _pinchDown(PointerDownEvent e) {
     _punteros[e.pointer] = e.position;
     if (_punteros.length == 2) {
       _pinchBaseDist = _distPunteros();
-      _pinchBaseZoom = _letraZoom;
     }
   }
 
@@ -74,14 +71,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     _punteros[e.pointer] = e.position;
     final double? base = _pinchBaseDist;
-    if (_punteros.length == 2 && base != null && base > 0) {
-      final double escala = _distPunteros() / base;
-      setState(() {
-        _letraZoom = (_pinchBaseZoom * escala).clamp(1.0, 2.6);
-        if (_view == _View.letra) {
-          _immersive = _letraZoom > 1.15;
-        }
-      });
+    if (_punteros.length != 2 ||
+        base == null ||
+        base <= 0 ||
+        _view != _View.letra) {
+      return;
+    }
+    final double ratio = _distPunteros() / base;
+    // Abrir (>1.25) entra en pantalla completa; cerrar (<0.8) sale. Se re-ancla la
+    // base tras cada cambio para no re-disparar dentro del mismo gesto.
+    if (ratio >= 1.25 && !_immersive) {
+      setState(() => _immersive = true);
+      _pinchBaseDist = _distPunteros();
+    } else if (ratio <= 0.8 && _immersive) {
+      setState(() => _immersive = false);
+      _pinchBaseDist = _distPunteros();
     }
   }
 
@@ -152,7 +156,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _view = orden[next];
         _immersive = false;
-        _letraZoom = 1.0;
       });
     }
   }
@@ -225,7 +228,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               onTap: () => setState(() {
                                 _view = tab.$1;
                                 _immersive = false;
-                                _letraZoom = 1.0;
                               }),
                             ),
                             const SizedBox(width: 7),
@@ -372,7 +374,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onLongPress: () => setState(() => _immersive = !_immersive),
-            child: _Letra(pistaId: pista.id, zoom: _letraZoom),
+            child: _Letra(pistaId: pista.id),
           ),
         );
       case _View.cola:
@@ -591,12 +593,9 @@ class _Ambient extends StatelessWidget {
 /// sincronizada con la línea activa resaltada y auto-scroll; cae a texto plano,
 /// y a estados claros cuando no hay letra o no hay PC. Incluye el toggle Karaoke.
 class _Letra extends ConsumerStatefulWidget {
-  const _Letra({required this.pistaId, this.zoom = 1.0});
+  const _Letra({required this.pistaId});
 
   final int pistaId;
-
-  /// Factor de zoom aplicado a la letra (gesto de pellizco del reproductor).
-  final double zoom;
 
   @override
   ConsumerState<_Letra> createState() => _LetraState();
@@ -659,13 +658,12 @@ class _LetraState extends ConsumerState<_Letra> {
   }
 
   Widget _synced(NbColors c, Lyrics lyrics, Duration pos) {
-    // Escala de letra por tamaño de pantalla (en grande, mucho mayor) combinada
-    // con el zoom manual del pellizco del usuario.
+    // Escala de letra por tamaño de pantalla (en grande, mucho mayor).
     final double escala = switch (context.bp) {
       Bp.compact => 1.0,
       Bp.medium => 1.5,
       Bp.expanded => 2.0,
-    } * widget.zoom;
+    };
     _itemExtent = 58 * escala;
     final int active = lyrics.activeIndex(pos);
     if (active != _lastActive) {

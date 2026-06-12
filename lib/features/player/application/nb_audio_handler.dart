@@ -160,6 +160,23 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player?.addAudioSource(_toAudioSource(p));
   }
 
+  /// Añade varias pistas al final de la cola en **una sola operación**: una
+  /// difusión de `queue` y una llamada al player (`addAudioSources`), en vez de
+  /// N llamadas en bucle. Clave para encolar un álbum/artista sin bloquear el hilo
+  /// de UI con decenas de operaciones (cada `addToQueueEnd` copiaba la cola O(n)).
+  Future<void> addAllToQueueEnd(List<Pista> ps) async {
+    if (ps.isEmpty) {
+      return;
+    }
+    queue.add(<MediaItem>[
+      ...queue.value,
+      for (final Pista p in ps) _toMediaItem(p),
+    ]);
+    await _player?.addAudioSources(
+      <AudioSource>[for (final Pista p in ps) _toAudioSource(p)],
+    );
+  }
+
   /// Inserta [p] en la posición [index] de la cola (p. ej. `index actual + 1`
   /// para "reproducir a continuación").
   Future<void> insertAt(int index, Pista p) async {

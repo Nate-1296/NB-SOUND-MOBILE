@@ -37,8 +37,15 @@ class PlaylistsScreen extends ConsumerWidget {
     final List<Playlist> guardadasBase = ref.watch(playlistsGuardadasProvider);
     final List<Playlist> delPcBase =
         ref.watch(playlistsDelPcNoGuardadasProvider);
-    final bool baseVacia =
-        localesBase.isEmpty && guardadasBase.isEmpty && delPcBase.isEmpty;
+    // "Tus me gusta" (favoritas) es una playlist de primera clase: aparece aquí,
+    // no solo en Inicio. Cuenta como contenido (no se muestra el estado vacío si
+    // hay favoritas aunque no haya playlists).
+    final List<Pista> favoritas =
+        ref.watch(favoritasProvider).value ?? const <Pista>[];
+    final bool baseVacia = localesBase.isEmpty &&
+        guardadasBase.isEmpty &&
+        delPcBase.isEmpty &&
+        favoritas.isEmpty;
 
     if (baseVacia) {
       return Column(
@@ -185,7 +192,14 @@ class PlaylistsScreen extends ConsumerWidget {
     ];
     delPcItems = conAncladasArriba(delPcItems, ancladas, (_Item e) => e.token);
 
-    final bool hayTuyas = tusItems.isNotEmpty;
+    // "Tus me gusta" se muestra arriba de "Tus playlists" si hay favoritas y, con
+    // búsqueda activa, si el nombre coincide (difuso).
+    final bool meGustaVisible = favoritas.isNotEmpty &&
+        (q.isEmpty ||
+            puntuarTexto(q, normalizar('Tus me gusta'),
+                    tokenizar(normalizar('Tus me gusta'))) >=
+                0.45);
+    final bool hayTuyas = tusItems.isNotEmpty || meGustaVisible;
     final bool nada = !hayTuyas && delPcItems.isEmpty;
 
     return Column(
@@ -234,7 +248,13 @@ class PlaylistsScreen extends ConsumerWidget {
                       const SectionLabel(label: 'Tus playlists'),
                       _seccion(
                         vista,
-                        <Widget>[for (final _Item it in tusItems) it.card],
+                        <Widget>[
+                          if (meGustaVisible)
+                            esLista
+                                ? MeGustaTile(conteo: favoritas.length)
+                                : MeGustaCard(conteo: favoritas.length),
+                          for (final _Item it in tusItems) it.card,
+                        ],
                       ),
                     ],
                     if (delPcItems.isNotEmpty) ...<Widget>[

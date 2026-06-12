@@ -15,13 +15,30 @@ const Map<String, String> _diacriticos = <String, String>{
   'ñ': 'n', 'ç': 'c', 'ý': 'y', 'ÿ': 'y', 'ß': 's', 'æ': 'a', 'œ': 'o',
 };
 
-/// Normaliza un texto para comparar: minúsculas, sin diacríticos, y todo lo que
-/// no sea alfanumérico colapsado a un único espacio (recortado).
+/// Apóstrofes/comillas simples que NO separan palabras: se eliminan sin dejar
+/// espacio, de modo que "Ain't" y "aint" normalizan igual ("aint"). Antes el
+/// apóstrofe se colapsaba a espacio ("ain t") y la búsqueda no perdonaba ese
+/// símbolo (buscar "aint" no encontraba "Ain't").
+const Set<int> _apostrofes = <int>{
+  0x27, // '  apóstrofe recto
+  0x2019, // ’  comilla simple derecha (la que ponen muchos editores)
+  0x2018, // ‘  comilla simple izquierda
+  0x02BC, // ʼ  letra modificadora apóstrofe
+  0x00B4, // ´  acento agudo suelto
+  0x0060, // `  acento grave
+};
+
+/// Normaliza un texto para comparar: minúsculas, sin diacríticos, los apóstrofes
+/// se eliminan (no separan palabras) y todo lo demás no alfanumérico se colapsa a
+/// un único espacio (recortado).
 String normalizar(String s) {
   final String lower = s.toLowerCase();
   final StringBuffer sb = StringBuffer();
   bool ultimoEspacio = true; // evita espacios iniciales
   for (final int rune in lower.runes) {
+    if (_apostrofes.contains(rune)) {
+      continue; // no separa palabras: "ain't" → "aint"
+    }
     final String ch = String.fromCharCode(rune);
     final String base = _diacriticos[ch] ?? ch;
     final bool alfaNum = base.length == 1 &&

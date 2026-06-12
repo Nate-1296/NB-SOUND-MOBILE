@@ -27,6 +27,13 @@ import 'shared/theme/theme_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Caché de imágenes en memoria más amplia (la de RAM; el disco lo cubre
+  // CoverCache): mantiene decodificadas más portadas al navegar entre vistas, así
+  // se reduce el "parpadeo" de recarga al reentrar a una pantalla.
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 1500
+    ..maximumSizeBytes = 200 << 20; // 200 MB
+
   // Pinning TLS global para NetworkImage y el proxy de just_audio (rutas que no
   // pasan por dio). La huella del PC emparejado la fija NbSoundApp.
   HttpOverrides.global = NbHttpOverrides();
