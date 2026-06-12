@@ -9,6 +9,7 @@ import '../../../shared/theme/nb_colors.dart';
 import '../../../shared/theme/nb_theme.dart';
 import '../../../shared/widgets/app_icons.dart';
 import '../../../shared/widgets/sub_header.dart';
+import '../application/conexion_provider.dart';
 import '../application/sync_controller.dart';
 
 /// Flujo de sincronización con el PC: intro → escaneo QR → conexión → conectado.
@@ -587,6 +588,23 @@ class _Connected extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final NbColors c = context.nb;
     final SyncState s = ref.watch(syncControllerProvider);
+    // Estado de conexión REAL (sondeo `/ping`): antes esta vista ponía siempre
+    // "Conectado" aunque el PC no respondiera. Ahora refleja la verdad.
+    final ConexionEstado conexion = ref.watch(conexionPcProvider);
+    final (Color estadoColor, IconData estadoIcon, String estadoTexto) =
+        switch (conexion) {
+      ConexionEstado.conectado => (
+          const Color(0xFF3DDC84),
+          AppIcons.wifi,
+          'Conectado · misma red local',
+        ),
+      ConexionEstado.desconectado => (
+          const Color(0xFFFFA502),
+          AppIcons.laptop,
+          'Desconectado · no se alcanza el PC',
+        ),
+      ConexionEstado.sinEnlace => (c.text3, AppIcons.laptop, 'Sin enlace'),
+    };
     return Column(
       children: <Widget>[
         const SubHeader(title: 'Sincronización'),
@@ -629,21 +647,19 @@ class _Connected extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 3),
-                            const Row(
+                            Row(
                               children: <Widget>[
-                                Icon(
-                                  AppIcons.wifi,
-                                  size: 13,
-                                  color: Color(0xFF3DDC84),
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Conectado · misma red local',
-                                  style: TextStyle(
-                                    fontFamily: NbFonts.ui,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF3DDC84),
+                                Icon(estadoIcon, size: 13, color: estadoColor),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    estadoTexto,
+                                    style: TextStyle(
+                                      fontFamily: NbFonts.ui,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: estadoColor,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -654,6 +670,35 @@ class _Connected extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (conexion == ConexionEstado.desconectado) ...<Widget>[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => ref
+                          .read(syncControllerProvider.notifier)
+                          .reconnect(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: estadoColor,
+                        side: BorderSide(color: estadoColor),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: Icon(AppIcons.refresh, color: estadoColor, size: 18),
+                      label: Text(
+                        'Reintentar conexión',
+                        style: TextStyle(
+                          fontFamily: NbFonts.ui,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: estadoColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,

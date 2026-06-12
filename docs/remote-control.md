@@ -93,10 +93,28 @@ Mapean a métodos existentes del `Reproductor` del PC:
 
 ## Transición de destino
 
+Principio **Spotify Connect**: cuando se maneja desde el teléfono, **solo un
+dispositivo suena** y el estado (pista, posición, reproduciendo/pausa) se
+**traspasa** entre ambos.
+
 ```text
-local → remoto:  pausar local (opcional), suscribir WS, render estado del PC
-remoto → local:  desuscribir WS, retomar reproducción local desde su estado
+local → remoto:  pausar local, reproducir_pista(pista, posición) en el PC
+remoto → local:  pausar el PC si sonaba, traer su pista/posición/estado al móvil
 ```
+
+As-built (`lib/features/player/application/playback.dart`):
+
+- `usarRemoto()` captura lo que suena en el móvil, **pausa el reproductor local**
+  y manda `reproducir_pista` al PC con la posición. (El PC solo expone
+  `reproducir_pista`, que arranca la reproducción; el caso de partida —"quiero
+  oírlo en el PC"— es justo reproducir allí.)
+- `usarLocal()` lee el último `estado` del PC; si estaba **conectado y sonando**,
+  envía `play_pause` para **pausar el PC** (solo un dispositivo suena), y luego
+  `PlayerController.reproducirIdRemota(pistaId, posicionSeg, reproducir)` resuelve
+  esa pista en la biblioteca local y la arranca en la misma posición y estado
+  (sonando o en pausa). El antiguo defecto —el PC seguía sonando y el teléfono
+  quedaba con su cola previa en pausa— queda corregido. La decisión es pura y
+  testeable: `planTraspasoLocal(...)` (test en `test/features/player/cola_test.dart`).
 
 La cola del PC y la cola local son independientes; cambiar de destino no las
 fusiona (decisión de v1: simplicidad y previsibilidad).

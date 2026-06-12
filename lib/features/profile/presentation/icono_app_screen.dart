@@ -41,8 +41,8 @@ class IconoAppScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
-                'Elige el ícono que verás en tu pantalla de inicio. Puede tardar '
-                'unos segundos en actualizarse.',
+                'Elige el ícono que verás en tu pantalla de inicio. El cambio se '
+                'aplica la próxima vez que cierres y vuelvas a abrir la app.',
                 style: TextStyle(
                   fontFamily: NbFonts.ui,
                   fontSize: 12.5,
@@ -71,10 +71,10 @@ class IconoAppScreen extends ConsumerWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            duration: const Duration(seconds: 3),
+                            duration: const Duration(seconds: 4),
                             content: Text(
-                              'Ícono "${o.label}" aplicado. Puede tardar unos '
-                              'segundos en cambiar.',
+                              'Ícono "${o.label}" guardado. Se aplicará cuando '
+                              'cierres y vuelvas a abrir la app.',
                             ),
                           ),
                         );
@@ -105,6 +105,10 @@ class _IconCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
+    // Los logos por tema son PNG circulares con fondo transparente: se muestran
+    // con `contain` (completos, sin recortar) y SIN recuadro/caja detrás, que
+    // antes los hacía verse cortados sobre un cuadro feo. El "Por defecto" sí es
+    // un mosaico redondeado de marca (la forma real del ícono adaptativo).
     final Widget media = opcion.asset == null
         ? DecoratedBox(
             decoration: BoxDecoration(
@@ -119,9 +123,9 @@ class _IconCell extends StatelessWidget {
               child: Icon(AppIcons.sparkles, color: c.ink, size: 30),
             ),
           )
-        : ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Image.asset(opcion.asset!, fit: BoxFit.cover),
+        : Padding(
+            padding: const EdgeInsets.all(6),
+            child: Image.asset(opcion.asset!, fit: BoxFit.contain),
           );
     return GestureDetector(
       onTap: onTap,
@@ -134,16 +138,7 @@ class _IconCell extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: activo ? c.accent : c.line2,
-                        width: activo ? 2.5 : 1,
-                      ),
-                    ),
-                    child: media,
-                  ),
+                  media,
                   if (activo)
                     Positioned(
                       right: 6,

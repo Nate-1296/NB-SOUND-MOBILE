@@ -203,6 +203,45 @@ Cierre del flujo de descargas y mantenimiento en vivo (`flutter analyze` limpio,
   corto (insensible a mayúsculas, un solo uso). Validado con el código corto
   contra el server real.
 
+## Tanda de ajustes UI/UX + Connect resiliente (2026-06-11)
+
+`flutter analyze` limpio · **182 tests** verdes.
+
+- **Inicio · accesos rápidos**: la miniatura de cada playlist es un **mosaico
+  2×2** (4 portadas distintas), igual que en la lista de Playlists, en vez de una
+  sola portada. Tarjetas de **alto fijo** y más columnas en pantallas anchas (no
+  crecen desproporcionadas en tablet).
+- **Playlists**: la **cuadrícula pequeña** ya difiere de la mediana (añade 2
+  columnas, como en Biblioteca); el botón Guardar/Guardada de una playlist del PC
+  es **solo ícono** que cambia con el estado (descargar → guardar+bajar;
+  descargando/descargada → tocar para dejar de seguir), como en álbumes.
+- **Tus me gusta**: el botón Aleatorio usa `ShuffleCollectionButton` (refleja
+  estado y da feedback), coherente con álbumes/playlists.
+- **Reproductor · Letra**: el botón de pantalla completa se sustituye por el
+  **gesto de pellizco** (dos dedos) que agranda la letra y entra/sale del modo
+  inmersivo. Implementado con `Listener` (punteros crudos) para no robar el
+  scroll ni el cambio de vista.
+- **Reproducir en…**: "Mi PC" sale **deshabilitado** (atenuado, no pulsable)
+  cuando el PC no está conectado, en el selector de destino (reproductor y
+  General).
+- **Top-bar**: el título usa `AutoFitText` (reduce la letra y, si hace falta,
+  parte en 2 líneas) para verse siempre completo sin romper la estética.
+- **General**: el acceso "Sincronizar con PC" **ya no muestra el estado** de
+  conexión (está arriba, en la tarjeta de perfil). La **vista de Sincronización**
+  refleja el **estado real** (`conexionPcProvider`: Conectado/Desconectado) en
+  vez del "Conectado" fijo, con botón "Reintentar conexión" si está desconectado.
+- **Ícono de la app**: la rejilla muestra los PNG circulares **completos**
+  (`contain`, sin recuadro/caja detrás). El cambio del lanzador se **difiere a
+  `onStop`** (Android) para **no cerrar la app** en primer plano; el aviso dice
+  que se aplicará al cerrar y reabrir.
+- **Descargas resilientes**: todos los puntos de entrada (menú de pista, álbum,
+  playlist, reproductor, "descargar todo") pasan por `encolarConAviso`: avisan si
+  **no hay PC emparejado** (no encolan; ofrecen Sincronizar) o si está
+  **desconectado** (encolan y avisan que bajará al reconectar). Decisión pura
+  `gateDescarga` (testeada).
+- **Connect (Spotify-like)**: traspaso bidireccional de estado y **un solo
+  dispositivo suena** — ver [`remote-control.md`](remote-control.md#transición-de-destino).
+
 ## No hecho / pendiente
 
 - **iOS**: no compilado (requiere macOS). Solo Android verificado.

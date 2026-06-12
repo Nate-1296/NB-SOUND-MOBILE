@@ -65,11 +65,16 @@ class CoverMosaic extends StatelessWidget {
     required this.images,
     required this.size,
     this.radius = 12,
+    this.shadow = true,
   });
 
   final List<ImageProvider> images;
   final double size;
   final double radius;
+
+  /// Sombra de elevación. Se desactiva cuando el mosaico va como miniatura
+  /// plana dentro de otra tarjeta (p. ej. los accesos rápidos del Inicio).
+  final bool shadow;
 
   @override
   Widget build(BuildContext context) {
@@ -79,13 +84,15 @@ class CoverMosaic extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x66000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
+        boxShadow: shadow
+            ? const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 18,
+                  offset: Offset(0, 6),
+                ),
+              ]
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: GridView.count(

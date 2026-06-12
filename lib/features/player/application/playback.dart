@@ -15,7 +15,8 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
   PlaybackTarget build() => PlaybackTarget.local;
 
   /// Cambia a control remoto si hay un PC emparejado. Devuelve false si no.
-  /// Handoff: pausa el móvil y transfiere al PC la pista y posición actuales.
+  /// Handoff (Spotify Connect): pausa el móvil (solo un dispositivo suena) y
+  /// transfiere al PC la pista y posición actuales para que continúe allí.
   Future<bool> usarRemoto() async {
     final PairedPc? pc = await ref.read(secureStoreProvider).readPairing();
     if (pc == null) {
@@ -30,7 +31,10 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
     r.conectar(pc);
     state = PlaybackTarget.remote;
 
-    // Pausar el móvil y reproducir lo mismo en el PC (transferencia real).
+    // Pausar el móvil y reproducir lo mismo en el PC (transferencia real). El PC
+    // solo expone `reproducir_pista` (que arranca la reproducción): el caso de
+    // partida —el usuario quiere oírlo en el PC— es reproducir, así que se
+    // transfiere y suena allí, mientras el teléfono queda en silencio.
     if (pistaId != null) {
       ref.read(playerControllerProvider.notifier).pausar();
       r.reproducirPista(pistaId, posicionSeg: posSeg);
@@ -38,9 +42,36 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
     return true;
   }
 
-  void usarLocal() {
+  /// Vuelve a reproducir en este teléfono. Handoff inverso (Spotify Connect): si
+  /// el PC estaba sonando lo **pausa** (solo un dispositivo suena) y **trae** al
+  /// teléfono lo que sonaba en el PC —misma pista, posición y estado de
+  /// reproducción— en vez de dejar el teléfono con lo que tuviera en pausa.
+  Future<void> usarLocal() async {
+    final RemoteState remoto = ref.read(remoteControllerProvider);
+    final RemotePistaDto? pcPista = remoto.estado.pista;
+    final TraspasoLocal plan = planTraspasoLocal(
+      conectado: remoto.conectado,
+      pistaId: pcPista?.id,
+      posicionSeg: remoto.estado.posicionSeg,
+      reproduciendo: remoto.estado.reproduciendo,
+    );
+
+    // Pausa el PC al tomar el control desde el teléfono (un solo dispositivo).
+    if (plan.pausarPc) {
+      ref.read(remoteControllerProvider.notifier).playPause();
+    }
     ref.read(remoteControllerProvider.notifier).desconectar();
     state = PlaybackTarget.local;
+
+    // Traspasa la pista del PC al reproductor local (si existe en la biblioteca
+    // del teléfono): misma posición y estado (sonando/pausa).
+    if (plan.hayTraspaso) {
+      await ref.read(playerControllerProvider.notifier).reproducirIdRemota(
+            plan.pistaId!,
+            posicionSeg: plan.posicionSeg,
+            reproducir: plan.reproducir,
+          );
+    }
   }
 }
 
@@ -143,6 +174,46 @@ final Provider<NowPlaying> nowPlayingProvider = Provider<NowPlaying>((Ref ref) {
   return (
     play: ids[i],
     next: <int>[for (int j = i + 1; j < ids.length; j++) ids[j]],
+  );
+}
+
+/// Plan de traspaso al **tomar el control en el teléfono** (Spotify Connect):
+/// dado lo que publica el PC, decide si hay que pausarlo (solo un dispositivo
+/// suena) y qué pista/posición/estado traer al reproductor local. Pura y
+/// testeable (sin red ni reproductor).
+class TraspasoLocal {
+  const TraspasoLocal({
+    required this.pausarPc,
+    required this.pistaId,
+    required this.posicionSeg,
+    required this.reproducir,
+  });
+
+  /// Hay que pausar el PC (estaba conectado y sonando).
+  final bool pausarPc;
+
+  /// Pista del PC a traer al teléfono (null/≤0 si no hay nada que traspasar).
+  final int? pistaId;
+  final double posicionSeg;
+
+  /// Estado a aplicar localmente (sonando o en pausa).
+  final bool reproducir;
+
+  /// True si hay una pista válida que traspasar.
+  bool get hayTraspaso => pistaId != null && pistaId! > 0;
+}
+
+TraspasoLocal planTraspasoLocal({
+  required bool conectado,
+  required int? pistaId,
+  required double posicionSeg,
+  required bool reproduciendo,
+}) {
+  return TraspasoLocal(
+    pausarPc: conectado && reproduciendo,
+    pistaId: pistaId,
+    posicionSeg: posicionSeg,
+    reproducir: reproduciendo,
   );
 }
 

@@ -323,6 +323,37 @@ class PlayerController extends Notifier<PlayerState> {
 
   Future<void> reproducirPista(Pista pista) => reproducir(<Pista>[pista], 0);
 
+  /// Traspaso desde el PC (Spotify Connect): reproduce localmente la pista
+  /// [pistaId] que sonaba en el PC, arrancando en [posicionSeg] y respetando si
+  /// estaba [reproducir]ndo o en pausa. Resuelve la id contra el catálogo (a
+  /// streaming desde el PC o al archivo descargado); si la pista no existe en la
+  /// biblioteca del teléfono, no hace nada (no hay nada que traspasar).
+  Future<void> reproducirIdRemota(
+    int pistaId, {
+    double posicionSeg = 0,
+    bool reproducir = true,
+  }) async {
+    final Map<int, Pista> porId = await _catalog.getPistasPorIds(<int>[pistaId]);
+    final Pista? pista = porId[pistaId];
+    if (pista == null) {
+      return;
+    }
+    _handler.remote = ref.read(remoteMediaProvider);
+    _handler.karaokeId = null;
+    final List<Pista> fuentes = await _resolverFuentes(<Pista>[pista]);
+    state = state.copyWith(queue: <Pista>[pista], index: 0, karaoke: false);
+    _lastRecordedIndex = null;
+    await _handler.loadQueue(
+      fuentes,
+      0,
+      initialPosition:
+          Duration(milliseconds: (posicionSeg * 1000).round().clamp(0, 1 << 31)),
+      autoPlay: reproducir,
+    );
+    _registrarHistorial(0);
+    guardarSesion();
+  }
+
   // ── Manipulación de cola (estilo Spotify) ────────────────────────────────
   /// Añade [pista] al final de la cola. Si no hay nada sonando, arranca esa pista.
   Future<void> addToQueue(Pista pista) async {

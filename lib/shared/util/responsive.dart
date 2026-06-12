@@ -66,30 +66,33 @@ double uiScaleFor(double width) {
 }
 
 /// Factor de tamaño para tarjetas/fotos de carrusel (portadas, círculos de
-/// artista). Más agresivo que [uiScaleFor]: en pantallas anchas las tarjetas son
-/// claramente mayores (sin perder resolución, porque el `cacheWidth` se deriva del
-/// tamaño lógico × densidad).
+/// artista). Algo mayor que [uiScaleFor]: en pantallas anchas las tarjetas crecen
+/// (sin perder resolución, porque el `cacheWidth` se deriva del tamaño lógico ×
+/// densidad), pero de forma **contenida** — un crecimiento agresivo hacía que
+/// tarjetas como las de accesos rápidos se vieran desproporcionadas en tablet.
 double cardScaleFor(double width) {
   switch (breakpointFor(width)) {
     case Bp.compact:
       return 1.0;
     case Bp.medium:
-      return 1.3;
+      return 1.18;
     case Bp.expanded:
-      return 1.6;
+      return 1.32;
   }
 }
 
 /// Escala una cuenta base de ítems (cuántas pistas/álbumes mostrar en un carril)
-/// según el ancho: en pantallas grandes se muestran muchos más. Redondea al entero.
+/// según el ancho: en pantallas grandes se muestran más. Redondea al entero. La
+/// densidad extra en grande se gana sobre todo con más columnas (ver
+/// [gridColumns]), no inflando cada carril, así que el factor es moderado.
 int scaledCount(double width, int base) {
   switch (breakpointFor(width)) {
     case Bp.compact:
       return base;
     case Bp.medium:
-      return (base * 1.6).round();
+      return (base * 1.5).round();
     case Bp.expanded:
-      return (base * 2.4).round();
+      return (base * 2.0).round();
   }
 }
 

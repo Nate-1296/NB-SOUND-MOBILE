@@ -31,6 +31,65 @@ void main() {
     });
   });
 
+  group('planTraspasoLocal (tomar el control en el teléfono, Connect)', () {
+    test('PC conectado y sonando: pausa el PC y traspasa reproduciendo', () {
+      final TraspasoLocal p = planTraspasoLocal(
+        conectado: true,
+        pistaId: 42,
+        posicionSeg: 12.5,
+        reproduciendo: true,
+      );
+      expect(p.pausarPc, isTrue);
+      expect(p.hayTraspaso, isTrue);
+      expect(p.pistaId, 42);
+      expect(p.posicionSeg, 12.5);
+      expect(p.reproducir, isTrue);
+    });
+
+    test('PC conectado y en pausa: no pausa de nuevo, traspasa en pausa', () {
+      final TraspasoLocal p = planTraspasoLocal(
+        conectado: true,
+        pistaId: 7,
+        posicionSeg: 3,
+        reproduciendo: false,
+      );
+      expect(p.pausarPc, isFalse);
+      expect(p.hayTraspaso, isTrue);
+      expect(p.reproducir, isFalse);
+    });
+
+    test('sin pista válida en el PC: no hay traspaso', () {
+      expect(
+        planTraspasoLocal(
+          conectado: true,
+          pistaId: null,
+          posicionSeg: 0,
+          reproduciendo: true,
+        ).hayTraspaso,
+        isFalse,
+      );
+      expect(
+        planTraspasoLocal(
+          conectado: true,
+          pistaId: 0,
+          posicionSeg: 0,
+          reproduciendo: true,
+        ).hayTraspaso,
+        isFalse,
+      );
+    });
+
+    test('PC no conectado: nunca se intenta pausar el PC', () {
+      final TraspasoLocal p = planTraspasoLocal(
+        conectado: false,
+        pistaId: 9,
+        posicionSeg: 0,
+        reproduciendo: true,
+      );
+      expect(p.pausarPc, isFalse);
+    });
+  });
+
   group('indiceTrasMover (reordenar la cola)', () {
     test('mover la pista en curso la sigue', () {
       expect(indiceTrasMover(0, 0, 3), 3);

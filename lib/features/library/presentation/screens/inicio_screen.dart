@@ -401,40 +401,55 @@ class _QuickItem {
   final bool local;
 }
 
-/// Rejilla compacta de accesos rápidos (2–3 columnas), estilo Spotify: tarjetas
-/// anchas con su portada real + nombre.
+/// Rejilla compacta de accesos rápidos (2–4 columnas), estilo Spotify: tarjetas
+/// anchas con su portada real + nombre. La altura de cada tarjeta es **fija**
+/// (no escala con el ancho) para que en tablet/Chromebook no se vean
+/// desproporcionadas: la densidad extra se gana con más columnas, no con
+/// tarjetas gigantes.
 class _QuickPicks extends StatelessWidget {
   const _QuickPicks({required this.items});
   final List<_QuickItem> items;
+
+  /// Alto fijo de cada tarjeta (== lado de su miniatura, que va a sangre).
+  static const double _alto = 56;
 
   @override
   Widget build(BuildContext context) {
     final int max = context.countFor(6);
     final List<_QuickItem> visibles =
         items.length > max ? items.sublist(0, max) : items;
+    final int cols = switch (context.bp) {
+      Bp.compact => 2,
+      Bp.medium => 3,
+      Bp.expanded => 4,
+    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
-      child: GridView.count(
-        crossAxisCount: context.isWide ? 3 : 2,
-        childAspectRatio: 3.2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: cols,
+          mainAxisExtent: _alto,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+        ),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        children: <Widget>[
-          for (final _QuickItem it in visibles) _QuickTile(item: it),
-        ],
+        itemCount: visibles.length,
+        itemBuilder: (BuildContext context, int i) =>
+            _QuickTile(item: visibles[i], lado: _alto),
       ),
     );
   }
 }
 
-/// Una tarjeta de acceso rápido. Resuelve su portada: "Tus me gusta" usa el
-/// degradado con el corazón; una playlist usa la primera portada disponible de
-/// sus pistas (saltando las que no tengan), o el placeholder si ninguna tiene.
+/// Una tarjeta de acceso rápido. Resuelve su miniatura: "Tus me gusta" usa el
+/// degradado con el corazón; una playlist usa un **mosaico 2×2** con sus 4
+/// primeras portadas distintas (igual que en la lista de Playlists), o una sola
+/// portada si tiene menos, o el placeholder si ninguna tiene.
 class _QuickTile extends ConsumerWidget {
-  const _QuickTile({required this.item});
+  const _QuickTile({required this.item, required this.lado});
   final _QuickItem item;
+  final double lado;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -442,8 +457,8 @@ class _QuickTile extends ConsumerWidget {
     final Widget leading;
     if (item.corazon) {
       leading = Container(
-        width: 46,
-        height: 46,
+        width: lado,
+        height: lado,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -452,7 +467,7 @@ class _QuickTile extends ConsumerWidget {
             colors: <Color>[c.accent, c.ambient],
           ),
         ),
-        child: Icon(AppIcons.heartFilled, color: c.ink, size: 20),
+        child: Icon(AppIcons.heartFilled, color: c.ink, size: 22),
       );
     } else {
       final List<Pista> pistas = item.playlistId == null
@@ -462,28 +477,27 @@ class _QuickTile extends ConsumerWidget {
                   : ref.watch(pistasDePlaylistProvider(item.playlistId!)))
               .value ??
               const <Pista>[];
-      // Primera portada disponible (salta pistas sin portada); placeholder si
-      // ninguna tiene.
-      final List<String> distintas = portadasDistintas(pistas, max: 1);
-      final ImageProvider? cover = distintas.isEmpty
-          ? null
-          : ref
-              .watch(coverResolverProvider)
-              .imageFor(distintas.first, cacheWidth: coverCachePx(context, 46));
-      leading = Container(
-        width: 46,
-        height: 46,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: c.bg3,
-          image: cover != null
-              ? DecorationImage(image: cover, fit: BoxFit.cover)
-              : null,
-        ),
-        child: cover != null
-            ? null
-            : Icon(AppIcons.note, color: c.text2, size: 20),
-      );
+      // Hasta 4 portadas distintas (salta repetidas y pistas sin portada) para
+      // armar el mosaico; placeholder si ninguna tiene.
+      final CoverResolver resolver = ref.watch(coverResolverProvider);
+      final int px = coverCachePx(context, lado);
+      final List<ImageProvider> covers = <ImageProvider>[
+        for (final String path in portadasDistintas(pistas))
+          if (resolver.imageFor(path, cacheWidth: px)
+              case final ImageProvider img)
+            img,
+      ];
+      leading = covers.length >= 4
+          ? CoverMosaic(images: covers, size: lado, radius: 0, shadow: false)
+          : Cover(
+              image: covers.isNotEmpty ? covers.first : null,
+              size: lado,
+              radius: 0,
+              shadow: false,
+              overlay: covers.isEmpty
+                  ? Center(child: Icon(AppIcons.note, color: c.text2, size: 20))
+                  : null,
+            );
     }
 
     return Material(

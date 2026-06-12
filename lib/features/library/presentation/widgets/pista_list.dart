@@ -11,6 +11,7 @@ import '../../../../shared/widgets/sheet.dart';
 import '../../../../shared/widgets/track_row.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
+import '../../../offline/presentation/download_actions.dart';
 import '../../../player/application/playback.dart';
 import '../../../player/application/player_controller.dart';
 import '../../../player/application/sleep_timer.dart';
@@ -385,7 +386,9 @@ Future<void> mostrarMenuPista(
                 if (descargada) {
                   q.eliminar(pista.id);
                 } else {
-                  q.encolarPista(pista.id);
+                  // Avisa si no hay PC emparejado / sin conexión, en vez de
+                  // encolar en silencio algo que no se descargará.
+                  encolarConAviso(context, ref, () => q.encolarPista(pista.id));
                 }
               },
             ),

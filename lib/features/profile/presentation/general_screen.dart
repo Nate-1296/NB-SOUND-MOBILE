@@ -123,12 +123,13 @@ class GeneralScreen extends ConsumerWidget {
               subtitle: 'Este teléfono o tu PC',
               onTap: () => mostrarSelectorDestino(context, ref),
             ),
+            // El estado de conexión NO va aquí (se muestra arriba, en la tarjeta
+            // de perfil): este acceso solo lleva a la vista de Sincronización,
+            // donde el estado real sí se refleja.
             _Tile(
-              icon: iconoEstado,
-              iconColor: colorEstado,
+              icon: AppIcons.laptop,
               label: 'Sincronizar con PC',
-              subtitle: conexion.etiqueta,
-              subtitleColor: colorEstado,
+              subtitle: 'Conectar y traer tu música',
               onTap: () => context.push('/sync'),
             ),
             _Tile(
@@ -148,15 +149,11 @@ class _Tile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.subtitle,
-    this.subtitleColor,
-    this.iconColor,
     this.onTap,
   });
   final IconData icon;
   final String label;
   final String? subtitle;
-  final Color? subtitleColor;
-  final Color? iconColor;
   final VoidCallback? onTap;
 
   @override
@@ -164,7 +161,7 @@ class _Tile extends StatelessWidget {
     final NbColors c = context.nb;
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: iconColor ?? c.text2, size: 22),
+      leading: Icon(icon, color: c.text2, size: 22),
       title: Text(
         label,
         style: TextStyle(
@@ -181,9 +178,7 @@ class _Tile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: NbFonts.ui,
                 fontSize: 12.5,
-                fontWeight:
-                    subtitleColor != null ? FontWeight.w600 : FontWeight.w400,
-                color: subtitleColor ?? c.text3,
+                color: c.text3,
               ),
             ),
       trailing: Icon(AppIcons.chevronRight, color: c.text3, size: 20),

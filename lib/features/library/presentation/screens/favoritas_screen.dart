@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
+import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
 
 /// Colección "Tus me gusta": todas las pistas favoritas, reproducibles como una
@@ -112,15 +113,10 @@ class FavoritasScreen extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              IconButton(
-                                tooltip: 'Reproducir aleatorio',
-                                onPressed: pistas.isEmpty
-                                    ? null
-                                    : () => ref
-                                        .read(playbackActionsProvider)
-                                        .reproducirColeccionAleatorio(pistas),
-                                icon: Icon(AppIcons.shuffle, color: c.text2),
-                              ),
+                              // Mismo botón (con estado de aleatorio reflejado y
+                              // feedback) que álbumes/playlists: antes aquí salía
+                              // siempre apagado y no era consistente.
+                              ShuffleCollectionButton(pistas: pistas),
                             ],
                           ),
                         ],

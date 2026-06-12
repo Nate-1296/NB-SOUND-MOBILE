@@ -22,6 +22,7 @@ import '../../lyrics/data/lyrics_models.dart';
 import '../../offline/application/download_providers.dart';
 import '../../offline/application/image_resolver.dart';
 import '../../offline/data/download_repository.dart';
+import '../../offline/presentation/download_actions.dart';
 import '../../remote_control/presentation/destination_sheet.dart';
 import '../../remote_control/presentation/remote_player_view.dart';
 import '../../sync/application/conexion_provider.dart';
@@ -45,9 +46,56 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double? _seekDrag;
 
   /// En la vista Letra: oculta cabecera/controles para ver la letra a pantalla
-  /// completa. Se alterna con el botón de pantalla completa o tocando la letra;
+  /// completa. Se entra con el pellizco (zoom) o manteniendo pulsada la letra;
   /// vuelve a false al cambiar de vista.
   bool _immersive = false;
+
+  /// Factor de zoom de la letra (1.0–2.6), controlado por el gesto de pellizco.
+  double _letraZoom = 1.0;
+
+  /// Punteros activos sobre la letra y referencia del pellizco (distancia y zoom
+  /// al iniciar el gesto de 2 dedos). Se usan punteros crudos (`Listener`) para
+  /// no competir en la arena de gestos con el scroll ni el cambio de vista.
+  final Map<int, Offset> _punteros = <int, Offset>{};
+  double? _pinchBaseDist;
+  double _pinchBaseZoom = 1.0;
+
+  void _pinchDown(PointerDownEvent e) {
+    _punteros[e.pointer] = e.position;
+    if (_punteros.length == 2) {
+      _pinchBaseDist = _distPunteros();
+      _pinchBaseZoom = _letraZoom;
+    }
+  }
+
+  void _pinchMove(PointerMoveEvent e) {
+    if (!_punteros.containsKey(e.pointer)) {
+      return;
+    }
+    _punteros[e.pointer] = e.position;
+    final double? base = _pinchBaseDist;
+    if (_punteros.length == 2 && base != null && base > 0) {
+      final double escala = _distPunteros() / base;
+      setState(() {
+        _letraZoom = (_pinchBaseZoom * escala).clamp(1.0, 2.6);
+        if (_view == _View.letra) {
+          _immersive = _letraZoom > 1.15;
+        }
+      });
+    }
+  }
+
+  void _pinchUp(PointerEvent e) {
+    _punteros.remove(e.pointer);
+    if (_punteros.length < 2) {
+      _pinchBaseDist = null;
+    }
+  }
+
+  double _distPunteros() {
+    final List<Offset> p = _punteros.values.toList();
+    return p.length < 2 ? 0 : (p[0] - p[1]).distance;
+  }
 
   /// Desplazamiento vertical del gesto de cerrar (arrastrar hacia abajo): el
   /// reproductor sigue al dedo y solo se cierra si se suelta pasado el umbral;
@@ -104,6 +152,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _view = orden[next];
         _immersive = false;
+        _letraZoom = 1.0;
       });
     }
   }
@@ -176,6 +225,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               onTap: () => setState(() {
                                 _view = tab.$1;
                                 _immersive = false;
+                                _letraZoom = 1.0;
                               }),
                             ),
                             const SizedBox(width: 7),
@@ -308,32 +358,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         );
       case _View.letra:
-        // Botón de pantalla completa (oculta cabecera/controles para ver solo la
-        // letra). Mantener pulsada la letra hace lo mismo; un toque sobre una línea
-        // salta a ese momento (ver `_Letra`).
-        return Stack(
-          children: <Widget>[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onLongPress: () => setState(() => _immersive = !_immersive),
-              child: _Letra(pistaId: pista.id),
-            ),
-            Positioned(
-              top: 0,
-              right: 0,
-              child: IconButton(
-                tooltip: _immersive
-                    ? 'Salir de pantalla completa'
-                    : 'Letra a pantalla completa',
-                onPressed: () => setState(() => _immersive = !_immersive),
-                icon: Icon(
-                  _immersive ? AppIcons.fullscreenExit : AppIcons.fullscreen,
-                  color: c.text2,
-                  size: 22,
-                ),
-              ),
-            ),
-          ],
+        // Pellizca con dos dedos sobre la letra para agrandarla (y entrar en modo
+        // inmersivo a pantalla completa); pellizca hacia dentro para reducir y
+        // salir. Sustituye al antiguo botón de pantalla completa por un gesto, en
+        // continuidad con el resto de la UI. Mantener pulsada la letra también
+        // alterna el modo inmersivo; un toque sobre una línea salta a ese momento.
+        // Listener (no GestureDetector) para no robar el scroll vertical ni el
+        // deslizamiento horizontal entre vistas: solo lee punteros para el pinch.
+        return Listener(
+          onPointerDown: _pinchDown,
+          onPointerMove: _pinchMove,
+          onPointerUp: _pinchUp,
+          onPointerCancel: _pinchUp,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onLongPress: () => setState(() => _immersive = !_immersive),
+            child: _Letra(pistaId: pista.id, zoom: _letraZoom),
+          ),
         );
       case _View.cola:
         return _Cola(player: player);
@@ -551,9 +592,12 @@ class _Ambient extends StatelessWidget {
 /// sincronizada con la línea activa resaltada y auto-scroll; cae a texto plano,
 /// y a estados claros cuando no hay letra o no hay PC. Incluye el toggle Karaoke.
 class _Letra extends ConsumerStatefulWidget {
-  const _Letra({required this.pistaId});
+  const _Letra({required this.pistaId, this.zoom = 1.0});
 
   final int pistaId;
+
+  /// Factor de zoom aplicado a la letra (gesto de pellizco del reproductor).
+  final double zoom;
 
   @override
   ConsumerState<_Letra> createState() => _LetraState();
@@ -616,12 +660,13 @@ class _LetraState extends ConsumerState<_Letra> {
   }
 
   Widget _synced(NbColors c, Lyrics lyrics, Duration pos) {
-    // Escala de letra por tamaño de pantalla: en grande, "muchísimo más grande".
+    // Escala de letra por tamaño de pantalla (en grande, mucho mayor) combinada
+    // con el zoom manual del pellizco del usuario.
     final double escala = switch (context.bp) {
       Bp.compact => 1.0,
       Bp.medium => 1.5,
       Bp.expanded => 2.0,
-    };
+    } * widget.zoom;
     _itemExtent = 58 * escala;
     final int active = lyrics.activeIndex(pos);
     if (active != _lastActive) {
@@ -964,22 +1009,14 @@ class _DownloadButton extends ConsumerWidget {
       tooltip: 'Descargar',
       visualDensity: VisualDensity.compact,
       constraints: compact,
-      onPressed: () {
-        // El audio se baja en streaming desde el PC: sin conexión real no hay
-        // nada que descargar. Se avisa en vez de encolar en silencio (la pista
-        // quedaría "pendiente" sin feedback).
-        if (ref.read(conexionPcProvider) != ConexionEstado.conectado) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'No se ha podido descargar. Comprueba la sincronización con tu PC.',
-              ),
-            ),
-          );
-          return;
-        }
-        ref.read(downloadQueueProvider.notifier).encolarPista(pistaId);
-      },
+      // El audio se baja en streaming desde el PC: sin PC/conexión se avisa en
+      // vez de encolar en silencio (criterio unificado con el resto de la app).
+      onPressed: () => encolarConAviso(
+        context,
+        ref,
+        () =>
+            ref.read(downloadQueueProvider.notifier).encolarPista(pistaId),
+      ),
       icon: Icon(AppIcons.download, color: c.text2, size: 20),
     );
   }

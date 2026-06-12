@@ -233,7 +233,7 @@ class PlaylistsScreen extends ConsumerWidget {
                     if (hayTuyas) ...<Widget>[
                       const SectionLabel(label: 'Tus playlists'),
                       _seccion(
-                        esLista,
+                        vista,
                         <Widget>[for (final _Item it in tusItems) it.card],
                       ),
                     ],
@@ -241,7 +241,7 @@ class PlaylistsScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       const SectionLabel(label: 'Del PC'),
                       _seccion(
-                        esLista,
+                        vista,
                         <Widget>[for (final _Item it in delPcItems) it.card],
                       ),
                     ],
@@ -360,18 +360,28 @@ class PlaylistsScreen extends ConsumerWidget {
       );
 }
 
-/// Renderiza una sección de playlists en lista (Column de tiles) o en cuadrícula.
-Widget _seccion(bool esLista, List<Widget> children) =>
-    esLista ? Column(children: children) : _Grid(children: children);
+/// Renderiza una sección de playlists en lista (Column de tiles) o en cuadrícula
+/// (pequeña o mediana, según [vista]).
+Widget _seccion(LibraryViewMode vista, List<Widget> children) =>
+    vista == LibraryViewMode.lista
+        ? Column(children: children)
+        : _Grid(vista: vista, children: children);
 
 class _Grid extends StatelessWidget {
-  const _Grid({required this.children});
+  const _Grid({required this.vista, required this.children});
+  final LibraryViewMode vista;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
+    // La cuadrícula pequeña añade 2 columnas sobre la mediana (celdas menores),
+    // igual que en la Biblioteca; antes ambas usaban las mismas columnas y se
+    // veían idénticas.
+    final int base = gridColumns(MediaQuery.sizeOf(context).width);
+    final int cols =
+        vista == LibraryViewMode.gridPequena ? base + 2 : base;
     return GridView.count(
-      crossAxisCount: gridColumns(MediaQuery.sizeOf(context).width),
+      crossAxisCount: cols,
       mainAxisSpacing: 18,
       crossAxisSpacing: 16,
       childAspectRatio: 0.82,

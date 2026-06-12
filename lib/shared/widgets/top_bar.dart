@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/nb_colors.dart';
 import '../theme/nb_theme.dart';
 import '../util/responsive.dart';
+import 'auto_fit_text.dart';
 
 /// Barra superior de las vistas raíz. Espejo de `TopBar` del diseño: avatar de
 /// perfil a la izquierda, título y acción opcional a la derecha.
@@ -84,10 +85,14 @@ class TopBar extends StatelessWidget {
                       color: c.text3,
                     ),
                   ),
-                Text(
+                // El título siempre se ve completo: primero reduce un poco la
+                // letra y, solo si aún no cabe, lo parte en dos líneas (último
+                // recurso, elipsis al mínimo). Así un saludo largo o el nombre de
+                // un álbum no se corta ni rompe la estética.
+                AutoFitText(
                   title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  minFontSize: titleSize * 0.6,
                   style: TextStyle(
                     fontFamily: NbFonts.display,
                     fontSize: titleSize,

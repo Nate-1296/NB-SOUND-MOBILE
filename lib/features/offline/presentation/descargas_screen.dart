@@ -18,6 +18,7 @@ import '../../library/application/library_providers.dart';
 import '../application/download_providers.dart';
 import '../data/download_repository.dart';
 import '../data/offline_store.dart';
+import 'download_actions.dart';
 
 /// True si la pista (o su id si no se conoce) coincide con la búsqueda difusa.
 /// Resiliente a typos/acentos (reusa `fuzzy.dart`). Con query vacía, todo coincide.
@@ -438,14 +439,21 @@ class _Acciones extends ConsumerWidget {
                   value: descargarTodo,
                   activeThumbColor: c.accent,
                   onChanged: (bool v) async {
+                    // La preferencia se guarda siempre (cada sync la honra). Al
+                    // activar, se intenta encolar ya, avisando si no hay PC.
                     await ref.read(syncStateDaoProvider).setValor(
                           SyncStateDao.kDescargarTodo,
                           v ? '1' : '0',
                         );
-                    if (v) {
-                      await ref
-                          .read(downloadQueueProvider.notifier)
-                          .encolarTodo();
+                    if (v && context.mounted) {
+                      await encolarConAviso(
+                        context,
+                        ref,
+                        () => ref
+                            .read(downloadQueueProvider.notifier)
+                            .encolarTodo(),
+                        exito: 'Descargando toda tu biblioteca',
+                      );
                     }
                   },
                 ),

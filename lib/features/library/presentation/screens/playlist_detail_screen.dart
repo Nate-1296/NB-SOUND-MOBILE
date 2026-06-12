@@ -12,6 +12,7 @@ import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
+import '../../../offline/presentation/download_actions.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
 import '../../application/playlist_covers.dart';
@@ -163,8 +164,9 @@ class PlaylistDetailScreen extends ConsumerWidget {
 }
 
 /// Guardar/seguir una playlist del PC: pasa a "Tus playlists", se mantiene al día
-/// por el sync y descarga todo su contenido para vivir offline. Si ya está
-/// guardada, muestra el progreso de descarga y permite dejar de seguirla.
+/// por el sync y descarga todo su contenido para vivir offline. Botón **solo
+/// ícono** que cambia según estado (como en álbumes): descargar → guardar+bajar;
+/// descargando/descargada → tocar para dejar de seguir.
 class _GuardarPlaylistButton extends ConsumerWidget {
   const _GuardarPlaylistButton({required this.playlistId, required this.pistas});
 
@@ -182,64 +184,37 @@ class _GuardarPlaylistButton extends ConsumerWidget {
       final int hechas =
           pistas.where((Pista p) => completas.contains(p.id)).length;
       final bool descargando = total > 0 && hechas < total;
-      return OutlinedButton.icon(
+      return IconButton(
+        tooltip: descargando
+            ? 'Guardada · $hechas/$total · dejar de seguir'
+            : 'Guardada · dejar de seguir',
         onPressed: () => _confirmarDejarDeSeguir(context, ref),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: c.accent,
-          side: BorderSide(color: c.accent),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          shape: const StadiumBorder(),
-        ),
         icon: Icon(
           descargando ? AppIcons.downloading : AppIcons.downloadDone,
-          size: 20,
+          size: 24,
           color: c.accent,
-        ),
-        label: Text(
-          descargando ? 'Guardada · $hechas/$total' : 'Guardada',
-          style: TextStyle(
-            fontFamily: NbFonts.ui,
-            fontWeight: FontWeight.w700,
-            color: c.accent,
-          ),
         ),
       );
     }
 
-    return FilledButton.tonalIcon(
+    return IconButton(
+      tooltip: 'Guardar y descargar',
       onPressed: pistas.isEmpty
           ? null
-          : () async {
-              await ref
-                  .read(followedPlaylistsDaoProvider)
-                  .guardar(playlistId);
-              await ref
-                  .read(downloadQueueProvider.notifier)
-                  .encolarPlaylist(playlistId);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content:
-                        Text('Guardada en Tus playlists · descargando'),
-                  ),
-                );
-              }
-            },
-      style: FilledButton.styleFrom(
-        backgroundColor: c.bg3,
-        foregroundColor: c.text,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-      ),
-      icon: Icon(AppIcons.download, size: 20, color: c.text),
-      label: Text(
-        'Guardar',
-        style: TextStyle(
-          fontFamily: NbFonts.ui,
-          fontWeight: FontWeight.w700,
-          color: c.text,
-        ),
-      ),
+          : () => encolarConAviso(
+                context,
+                ref,
+                () async {
+                  await ref
+                      .read(followedPlaylistsDaoProvider)
+                      .guardar(playlistId);
+                  await ref
+                      .read(downloadQueueProvider.notifier)
+                      .encolarPlaylist(playlistId);
+                },
+                exito: 'Guardada en Tus playlists · descargando',
+              ),
+      icon: Icon(AppIcons.download, size: 24, color: c.text2),
     );
   }
 

@@ -13,6 +13,7 @@ import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../offline/data/download_repository.dart';
+import '../../../offline/presentation/download_actions.dart';
 import '../../../player/application/playback.dart';
 import '../../../sync/application/remote_media_provider.dart';
 import '../../application/library_providers.dart';
@@ -240,8 +241,12 @@ class _AlbumDownloadButton extends ConsumerWidget {
     }
     return IconButton(
       tooltip: hechas > 0 ? 'Descargar resto del álbum' : 'Descargar álbum',
-      onPressed: () =>
-          ref.read(downloadQueueProvider.notifier).encolarAlbum(albumId),
+      onPressed: () => encolarConAviso(
+        context,
+        ref,
+        () => ref.read(downloadQueueProvider.notifier).encolarAlbum(albumId),
+        exito: 'Descargando álbum',
+      ),
       icon: Icon(AppIcons.download, color: hechas > 0 ? c.accent : c.text2),
     );
   }
