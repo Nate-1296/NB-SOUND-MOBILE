@@ -34,19 +34,29 @@ void main() {
         },
         'posicion_seg': 42.3,
         'volumen': 80,
-        'modo_repeticion': 'todas',
+        'modo_repeticion': 'todo',
         'aleatorio': true,
         'karaoke_activo': false,
+        'karaoke_disponible': true,
         'indice_cola': 4,
       });
       expect(e.reproduciendo, isTrue);
       expect(e.pista?.titulo, 'One More Time');
       expect(e.posicionSeg, 42.3);
       expect(e.volumen, 80);
-      expect(e.modoRepeticion, 'todas');
+      expect(e.modoRepeticion, ModoRepeticionPc.todo);
       expect(e.aleatorio, isTrue);
+      expect(e.karaokeDisponible, isTrue);
       expect(e.indiceCola, 4);
       expect(e.djActivo, isFalse); // ausente ⇒ default
+    });
+
+    test('karaoke_disponible ausente ⇒ default true (PC viejo)', () {
+      final RemoteEstadoDto e = RemoteEstadoDto.fromJson(<String, dynamic>{
+        'tipo': 'estado',
+        'reproduciendo': false,
+      });
+      expect(e.karaokeDisponible, isTrue);
     });
 
     test('RemoteEstadoDto parsea dj_activo cuando el PC lo envía', () {
@@ -164,6 +174,15 @@ void main() {
     expect(mv['hasta'], 2);
     expect(porAccion('remove_queue')['indice'], 1);
     expect(porAccion('clear_queue')['accion'], 'clear_queue');
+
+    // El ciclo de repetición habla el vocabulario AS-BUILT del PC: desde
+    // 'ninguno' (estado inicial) el siguiente modo es 'todo', no 'todas' (que el
+    // PC descartaría dejando la repetición sin poder encenderse desde el móvil).
+    ctrl.cicloRepeticion();
+    await _waitUntil(() => recibidos.any(
+        (String r) => (jsonDecode(r) as Map<String, dynamic>)['accion'] == 'repeat'));
+    final Map<String, dynamic> repeat = porAccion('repeat');
+    expect(repeat['modo'], ModoRepeticionPc.todo);
 
     ctrl.desconectar();
   });

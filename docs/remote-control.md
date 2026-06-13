@@ -46,9 +46,10 @@ Derivado de las señales reales del reproductor del PC (`estadoCambiado`,
              "duracion_seg": 215, "cover_url": "..." },
   "posicion_seg": 42.3,
   "volumen": 80,
-  "modo_repeticion": "ninguno|una|todas",
+  "modo_repeticion": "ninguno|uno|todo",
   "aleatorio": false,
   "karaoke_activo": false,
+  "karaoke_disponible": false,
   "indice_cola": 4
 }
 ```
@@ -65,7 +66,7 @@ Mapean a métodos existentes del `Reproductor` del PC:
 | `seek` `{posicion_seg}` | `buscar_posicion(posicion_seg)` |
 | `set_volume` `{volumen}` | `set_volumen(volumen)` |
 | `play_index` `{indice}` | `reproducir_indice_cola(indice)` |
-| `repeat` `{modo}` | `set_modo_repeticion(modo)` |
+| `repeat` `{modo}` | `set_modo_repeticion(modo)` — modo ∈ {`ninguno`,`uno`,`todo`}; otros se descartan |
 | `shuffle` `{activo}` | `set_aleatorio(activo)` |
 | `queue` (consulta) | `obtener_cola()` |
 

@@ -138,8 +138,8 @@ class NowPlaying {
       duration: Duration(seconds: (p?.duracionSeg ?? 0).round()),
       shuffle: s.estado.aleatorio,
       repeat: switch (s.estado.modoRepeticion) {
-        'una' => RepeatMode.one,
-        'todas' => RepeatMode.all,
+        ModoRepeticionPc.uno => RepeatMode.one,
+        ModoRepeticionPc.todo => RepeatMode.all,
         _ => RepeatMode.off,
       },
     );

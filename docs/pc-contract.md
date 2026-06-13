@@ -329,14 +329,23 @@ reproductor del PC. **Esquema plano**:
   },
   "posicion_seg": 42.3,
   "volumen": 80,
-  "modo_repeticion": "ninguno",    // "ninguno" | "una" | "todas" (string del PC)
+  "modo_repeticion": "ninguno",    // "ninguno" | "uno" | "todo" (enum ModoRepeticion del PC)
   "aleatorio": false,
   "karaoke_activo": false,
+  "karaoke_disponible": false,     // la pista en curso tiene instrumental listo
   "indice_cola": 4,
   "dj_activo": false               // true si hay sesión DJ Privado (el PC tiene el
                                    // control global; el móvil bloquea sus comandos)
 }
 ```
+> **`modo_repeticion`** usa el vocabulario AS-BUILT del enum `ModoRepeticion` del PC
+> (`servicios/reproductor.py`): `ninguno` | `uno` | `todo`. El PC valida el comando
+> `repeat` contra estos valores y **descarta** los desconocidos, así que el móvil
+> debe enviarlos y compararlos tal cual (no `una`/`todas`).
+> `karaoke_disponible` es **aditivo**: si el PC no lo envía (versión vieja) el móvil
+> asume `true` (botón usable como antes; el PC ignora el toggle si no hay stems).
+> Cuando es `false` (sin pista o sin instrumental listo) el móvil deshabilita el
+> botón de karaoke. Se refresca con `karaokeCambiado` (cableado a un push de estado).
 > `dj_activo` es **aditivo**: si el PC no lo envía (versión vieja) el móvil asume
 > `false`. Cuando es `true`, el cliente muestra "DJ Privado en sesión" y deshabilita
 > los controles hasta que la sesión termine (el PC vuelve a responder a comandos).
@@ -354,7 +363,7 @@ reproductor del PC. **Esquema plano**:
 | `seek` | `{ "posicion_seg": 90.0 }` | salta a la posición |
 | `set_volume` | `{ "volumen": 70 }` | volumen 0–100 |
 | `play_index` | `{ "indice": 3 }` | reproduce el ítem N de la cola |
-| `repeat` | `{ "modo": "ninguno|una|todas" }` | modo de repetición |
+| `repeat` | `{ "modo": "ninguno|uno|todo" }` | modo de repetición (valores del enum del PC; otros se descartan) |
 | `shuffle` | `{ "activo": true }` | aleatorio on/off |
 | `queue` | — | el PC responde con un frame `cola` (ver 5.4) |
 | `karaoke` | — | alterna el instrumental (karaoke) de la pista en curso |

@@ -108,27 +108,40 @@ class RemotePlayerView extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  IgnorePointer(
-                    ignoring: dj,
-                    child: Opacity(
-                      opacity: dj ? 0.4 : 1,
-                      child: TextButton.icon(
-                        onPressed: p != null ? ctrl.alternarKaraoke : null,
-                        icon: Icon(
-                          AppIcons.mic,
-                          size: 18,
-                          color: s.estado.karaokeActivo ? c.accent : c.text2,
-                        ),
-                        label: Text(
-                          'Karaoke',
-                          style: TextStyle(
-                            fontFamily: NbFonts.ui,
-                            fontWeight: FontWeight.w600,
-                            color: s.estado.karaokeActivo ? c.accent : c.text2,
+                  Builder(
+                    builder: (BuildContext context) {
+                      // Habilitado solo si el PC tiene una pista con instrumental
+                      // listo. Sin karaoke ⇒ botón atenuado y no cliqueable (el
+                      // PC ignoraría el toggle de todas formas).
+                      final bool karaokeOk =
+                          p != null && s.estado.karaokeDisponible;
+                      final Color karaokeColor = !karaokeOk
+                          ? c.text3
+                          : (s.estado.karaokeActivo ? c.accent : c.text2);
+                      return IgnorePointer(
+                        ignoring: dj,
+                        child: Opacity(
+                          opacity: dj ? 0.4 : 1,
+                          child: TextButton.icon(
+                            onPressed:
+                                karaokeOk ? ctrl.alternarKaraoke : null,
+                            icon: Icon(
+                              AppIcons.mic,
+                              size: 18,
+                              color: karaokeColor,
+                            ),
+                            label: Text(
+                              'Karaoke',
+                              style: TextStyle(
+                                fontFamily: NbFonts.ui,
+                                fontWeight: FontWeight.w600,
+                                color: karaokeColor,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                   TextButton.icon(
                     onPressed: () {
@@ -322,10 +335,12 @@ class RemotePlayerView extends ConsumerWidget {
         IconButton(
           onPressed: ctrl.cicloRepeticion,
           icon: Icon(
-            s.estado.modoRepeticion == 'una'
+            s.estado.modoRepeticion == ModoRepeticionPc.uno
                 ? AppIcons.repeatOne
                 : AppIcons.repeat,
-            color: s.estado.modoRepeticion == 'ninguno' ? c.text2 : c.accent,
+            color: s.estado.modoRepeticion == ModoRepeticionPc.ninguno
+                ? c.text2
+                : c.accent,
             size: 22,
           ),
         ),

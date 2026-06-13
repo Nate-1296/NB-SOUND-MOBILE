@@ -162,7 +162,10 @@ class RemoteController extends Notifier<RemoteState> {
   }
 
   void cicloRepeticion() {
-    const List<String> modos = <String>['ninguno', 'todas', 'una'];
+    // Vocabulario AS-BUILT del PC (ninguno/todo/uno): el PC valida `repeat`
+    // contra estos valores y descarta lo demás, así que el ciclo debe hablar su
+    // idioma. Valor desconocido (indexOf == -1) ⇒ arranca en el primer modo.
+    const List<String> modos = ModoRepeticionPc.ciclo;
     final int i = modos.indexOf(state.estado.modoRepeticion);
     setRepeticion(modos[(i + 1) % modos.length]);
   }

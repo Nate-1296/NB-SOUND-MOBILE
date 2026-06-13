@@ -601,6 +601,24 @@ firmados). Todo lo de abajo es **as-built**, no aspiracional.
   al recibir cualquier frame. El 401/desvinculación lo detecta la capa de sync (re-emparejar).
 - Multi-dispositivo: el PC ya difunde a todos los sockets (verificado en el contrato).
 
+### Correcciones del Connect (2026-06-13)
+- **Repetición off/una/todas funcionaba a medias**: el móvil hablaba `ninguno|una|todas`
+  pero el enum AS-BUILT del PC (`ModoRepeticion` en `servicios/reproductor.py`) es
+  `ninguno|uno|todo`, y `set_modo_repeticion` **descarta** (try/except ValueError) lo
+  desconocido. Efecto: desde el móvil solo se podía **apagar** (el único valor que
+  coincidía era `ninguno`); el icono nunca mostraba "una" (se quedaba en el de "todas",
+  el fallback). FIX **solo móvil** (PC manda; el contrato doc estaba mal): se centralizó
+  el vocabulario real en `ModoRepeticionPc` (`remote_dtos.dart`) y se usa en el ciclo
+  (`remote_controller.cicloRepeticion`), en el icono/color (`remote_player_view`) y en el
+  handoff remoto→local (`playback.NowPlaying.fromRemote`). Contrato corregido a
+  `ninguno|uno|todo`.
+- **Botón de karaoke siempre cliqueable**: el frame `estado` no decía si la pista del PC
+  tenía instrumental. Se añadió `karaoke_disponible` al snapshot (**lado PC**, lo commitea
+  el usuario; ya había `ModeloReproductor.karaoke_disponible`, refrescado por
+  `karaokeCambiado` que ya empuja estado) y al `RemoteEstadoDto` (`karakeDisponible`,
+  default `true` aditivo para PC viejos). El botón del reproductor remoto se **deshabilita
+  y atenúa** (`onPressed: null`, color `text3`) cuando no hay pista o no hay stems.
+
 ### Propagación PC→móvil (cambios del PC reflejados al sincronizar)
 - `SyncResult` ahora expone los ids del delta (pistas/álbumes/artistas cambiados) y de
   los tombstones (solo recolecta delta en syncs incrementales, `since>0`).
