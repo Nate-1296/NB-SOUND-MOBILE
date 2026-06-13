@@ -117,6 +117,32 @@ class RemoteController extends Notifier<RemoteState> {
       _comando('shuffle', <String, dynamic>{'activo': activo});
   void pedirCola() => _comando('queue');
 
+  /// Alterna el karaoke (instrumental) en el PC. El estado autoritativo llega en
+  /// el frame `estado` (`karaoke_activo`). Requiere el PC con el comando `karaoke`.
+  void alternarKaraoke() => _comando('karaoke');
+
+  // ── Cola espejada (móvil → PC) ───────────────────────────────────────────
+  /// Reemplaza la cola COMPLETA del PC por [ids] y reproduce el índice [indice]
+  /// (colas espejadas reales: una sola difusión, no pista a pista). Requiere el
+  /// PC con el comando `set_queue`.
+  void establecerCola(List<int> ids, int indice) => _comando(
+        'set_queue',
+        <String, dynamic>{'ids': ids, 'indice': indice},
+      );
+
+  /// Mueve un ítem de la cola del PC de [desde] a [hasta] (reordenar).
+  void moverEnCola(int desde, int hasta) => _comando(
+        'move_queue',
+        <String, dynamic>{'desde': desde, 'hasta': hasta},
+      );
+
+  /// Quita el ítem [indice] de la cola del PC.
+  void quitarDeCola(int indice) =>
+      _comando('remove_queue', <String, dynamic>{'indice': indice});
+
+  /// Vacía la cola del PC manteniendo la pista en curso.
+  void vaciarCola() => _comando('clear_queue');
+
   /// Handoff: reproducir en el PC la pista [pistaId] de la biblioteca, saltando
   /// a [posicionSeg] (transferir lo que sonaba en el móvil).
   void reproducirPista(int pistaId, {double posicionSeg = 0}) =>
@@ -163,6 +189,10 @@ class RemoteController extends Notifier<RemoteState> {
         cancelOnError: true,
       );
       state = state.copyWith(connection: RemoteConnection.connected);
+      // El PC manda el estado inicial al conectar, pero NO la cola: se pide para
+      // poblar la vista de cola espejada de inmediato. Idempotente (el PC también
+      // la difunde ante cada cambio de cola).
+      pedirCola();
     } catch (_) {
       _onClosed();
     }
@@ -176,6 +206,8 @@ class RemoteController extends Notifier<RemoteState> {
     if (decoded is! Map<String, dynamic>) {
       return;
     }
+    // Llegó un frame: la conexión funciona. Reinicia el backoff de reconexión.
+    _attempt = 0;
     switch (decoded['tipo']) {
       case 'estado':
         state = state.copyWith(
@@ -184,7 +216,10 @@ class RemoteController extends Notifier<RemoteState> {
         );
       case 'cola':
         final RemoteColaDto cola = RemoteColaDto.fromJson(decoded);
-        state = state.copyWith(cola: cola.items);
+        state = state.copyWith(
+          connection: RemoteConnection.connected,
+          cola: cola.items,
+        );
       default:
         break; // ack / error: el estado autoritativo llega en 'estado'
     }
@@ -196,10 +231,16 @@ class RemoteController extends Notifier<RemoteState> {
       state = state.copyWith(connection: RemoteConnection.disconnected);
       return;
     }
-    state = state.copyWith(connection: RemoteConnection.connecting);
-    final int seconds = (1 << (_attempt - 1)).clamp(1, 16);
+    // Reconexión con backoff acotado. Tras agotar los intentos la UI pasa a
+    // "error" (degradable a local) pero se SIGUE reintentando al intervalo máximo
+    // para recuperarse solo cuando vuelva el PC/WiFi.
+    final ({int delaySeconds, bool degradar}) plan = planReconexion(_attempt);
+    state = state.copyWith(
+      connection:
+          plan.degradar ? RemoteConnection.error : RemoteConnection.connecting,
+    );
     _reconnect?.cancel();
-    _reconnect = Timer(Duration(seconds: seconds), _open);
+    _reconnect = Timer(Duration(seconds: plan.delaySeconds), _open);
   }
 
   void _comando(String accion, [Map<String, dynamic>? args]) {
@@ -226,6 +267,20 @@ class RemoteController extends Notifier<RemoteState> {
     _reconnect = null;
     _teardownChannel();
   }
+}
+
+/// Plan de reconexión del WS de control dado el [intento] fallido consecutivo
+/// (1-based). Backoff exponencial acotado a 16 s; tras [maxIntentos] marca
+/// `degradar` (la UI muestra "sin conexión" y permite volver a local) pero NO deja
+/// de reintentar: al intervalo máximo sigue probando para recuperarse solo cuando
+/// el PC/WiFi vuelva. Pura y testeable.
+({int delaySeconds, bool degradar}) planReconexion(
+  int intento, {
+  int maxIntentos = 6,
+}) {
+  final int exp = (intento - 1).clamp(0, 4); // 2^4 = 16 s tope
+  final int seconds = (1 << exp).clamp(1, 16);
+  return (delaySeconds: seconds, degradar: intento >= maxIntentos);
 }
 
 final NotifierProvider<RemoteController, RemoteState> remoteControllerProvider =

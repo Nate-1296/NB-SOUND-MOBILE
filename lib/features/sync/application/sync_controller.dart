@@ -92,9 +92,21 @@ class SyncController extends Notifier<SyncState> {
             SyncStateDao.kUltimaSync,
             DateTime.now().toUtc().toIso8601String(),
           );
-      // Mantenimiento offline en vivo: reintenta fallidas, mantiene las playlists
-      // guardadas y, si está activado, completa el espejo de toda la biblioteca.
-      unawaited(_mantenerOffline());
+      // Propaga al estado offline lo que el PC cambió/borró: limpia media huérfana
+      // de los tombstones y resetea recursos descargados (portada/letra/karaoke)
+      // que cambiaron, para rebajarlos con el contenido nuevo. Devuelve qué pistas
+      // re-encolar. Se aplica ANTES del mantenimiento para que la cola vea los
+      // recursos ya reseteados como incompletos.
+      Set<int> reencolar = const <int>{};
+      try {
+        reencolar = await ref.read(offlinePropagationProvider).aplicar(result);
+      } catch (_) {
+        // Propagación best-effort: nunca rompe la sync.
+      }
+      // Mantenimiento offline en vivo: rebaja lo reseteado, reintenta fallidas,
+      // mantiene las playlists guardadas y, si está activado, completa el espejo
+      // de toda la biblioteca.
+      unawaited(_mantenerOffline(reencolar));
     } on DioException catch (e) {
       state = SyncState(
         phase: SyncPhase.connected,
@@ -113,11 +125,15 @@ class SyncController extends Notifier<SyncState> {
   }
 
   /// Encola el mantenimiento offline tras una sync con éxito. Best-effort: nunca
-  /// rompe la sync. Ver [DownloadQueueController].
-  Future<void> _mantenerOffline() async {
+  /// rompe la sync. [reencolar] son las pistas que la propagación reseteó (rebajar
+  /// su nueva portada/letra/karaoke). Ver [DownloadQueueController].
+  Future<void> _mantenerOffline([Set<int> reencolar = const <int>{}]) async {
     try {
       final DownloadQueueController q =
           ref.read(downloadQueueProvider.notifier);
+      if (reencolar.isNotEmpty) {
+        await q.encolarPistas(reencolar);
+      }
       await q.reintentarFallidas();
       await q.mantenerPlaylistsGuardadas();
       final String? todo =

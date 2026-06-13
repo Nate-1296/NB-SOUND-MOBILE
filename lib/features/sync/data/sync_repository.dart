@@ -22,6 +22,12 @@ class SyncResult {
     required this.tombstones,
     required this.historialSubido,
     required this.favoritosSubidos,
+    this.pistasDelta = const <int>[],
+    this.albumsDelta = const <int>[],
+    this.artistasDelta = const <int>[],
+    this.pistasBorradas = const <int>[],
+    this.albumsBorrados = const <int>[],
+    this.artistasBorrados = const <int>[],
   });
 
   final int syncVersion;
@@ -32,6 +38,21 @@ class SyncResult {
   final int tombstones;
   final int historialSubido;
   final int favoritosSubidos;
+
+  /// Ids de entidades que llegaron CAMBIADAS en este delta (solo en sync
+  /// incremental, `since > 0`). Alimentan la propagación PC→móvil: resetear los
+  /// recursos offline (portada/letra/karaoke) ya descargados para que se vuelvan a
+  /// bajar con su nuevo contenido. En la primera sync (`since == 0`) van vacíos
+  /// (no hay nada descargado que propagar).
+  final List<int> pistasDelta;
+  final List<int> albumsDelta;
+  final List<int> artistasDelta;
+
+  /// Ids borrados por tombstone (siempre, también en la primera sync). La
+  /// propagación borra su media offline huérfana.
+  final List<int> pistasBorradas;
+  final List<int> albumsBorrados;
+  final List<int> artistasBorrados;
 
   int get totalEntidades => pistas + albums + artistas + playlists;
 }
@@ -57,6 +78,12 @@ class SyncRepository {
       tombstones: pull.tombstones,
       historialSubido: push.historialInsertado,
       favoritosSubidos: push.favoritosAplicados,
+      pistasDelta: pull.pistasDelta.toList(),
+      albumsDelta: pull.albumsDelta.toList(),
+      artistasDelta: pull.artistasDelta.toList(),
+      pistasBorradas: pull.pistasBorradas.toList(),
+      albumsBorrados: pull.albumsBorrados.toList(),
+      artistasBorrados: pull.artistasBorrados.toList(),
     );
   }
 
@@ -64,6 +91,10 @@ class SyncRepository {
   Future<_PullStats> _pullManifest(PairedPc pc, {required int pageLimit}) async {
     final Dio dio = dioFor(pc);
     int since = await db.syncStateDao.getUltimaSyncVersion();
+    // La primera sync (`since == 0`) trae TODO el catálogo: no se recolectan ids
+    // de delta (nada descargado que propagar y la lista sería enorme). Los
+    // tombstones sí se recolectan siempre (son pocos y borran media huérfana).
+    final bool coleccionarDelta = since > 0;
     final _PullStats stats = _PullStats();
 
     while (true) {
@@ -73,7 +104,7 @@ class SyncRepository {
       );
       final ManifestDto m = ManifestDto.fromJson(_asMap(res.data));
       await _applyPage(m);
-      stats.add(m);
+      stats.add(m, coleccionarDelta: coleccionarDelta);
 
       if (m.hasMore) {
         // Avanza el cursor; NO se persiste ultima_sync_version hasta el final
@@ -216,11 +247,33 @@ class _PullStats {
   int playlists = 0;
   int tombstones = 0;
 
-  void add(ManifestDto m) {
+  final Set<int> pistasDelta = <int>{};
+  final Set<int> albumsDelta = <int>{};
+  final Set<int> artistasDelta = <int>{};
+  final Set<int> pistasBorradas = <int>{};
+  final Set<int> albumsBorrados = <int>{};
+  final Set<int> artistasBorrados = <int>{};
+
+  void add(ManifestDto m, {required bool coleccionarDelta}) {
     pistas += m.pistas.length;
     albums += m.albums.length;
     artistas += m.artistas.length;
     playlists += m.playlists.length;
     tombstones += m.tombstones.length;
+    if (coleccionarDelta) {
+      pistasDelta.addAll(m.pistas.map((PistaDto p) => p.id));
+      albumsDelta.addAll(m.albums.map((AlbumDto a) => a.id));
+      artistasDelta.addAll(m.artistas.map((ArtistaDto a) => a.id));
+    }
+    for (final TombstoneDto t in m.tombstones) {
+      switch (t.entidad) {
+        case 'pista':
+          pistasBorradas.add(t.entidadId);
+        case 'album':
+          albumsBorrados.add(t.entidadId);
+        case 'artista':
+          artistasBorrados.add(t.entidadId);
+      }
+    }
   }
 }

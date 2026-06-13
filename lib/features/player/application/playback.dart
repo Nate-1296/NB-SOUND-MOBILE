@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/providers.dart';
@@ -167,19 +169,24 @@ final Provider<NowPlaying> nowPlayingProvider = Provider<NowPlaying>((Ref ref) {
   return NowPlaying.fromLocal(ref.watch(playerControllerProvider));
 });
 
-/// Plan de reproducción remota de una colección: qué pista se reproduce ahora en
-/// el PC y qué pistas se encolan a continuación. Como el contrato del PC solo
-/// ofrece `reproducir_pista` (1) y `encolar_pista` (1), una colección se manda
-/// como reproducir [index] + encolar `index+1..fin` (las anteriores no se
-/// encolan, igual que Spotify al tocar la pista i de un álbum). Pura y testeable.
-({int play, List<int> next}) planColeccionRemota(List<int> ids, int index) {
-  final int i = index < 0
-      ? 0
-      : (index >= ids.length ? ids.length - 1 : index);
-  return (
-    play: ids[i],
-    next: <int>[for (int j = i + 1; j < ids.length; j++) ids[j]],
-  );
+/// Plan de **cola espejada** para el PC: filtra la música local (id < 0, no existe
+/// allí) y reubica el índice tocado dentro de la lista filtrada. Si la lista está
+/// vacía, el índice es inválido o la pista tocada es local, devuelve `ids` vacío
+/// (no se hace nada en remoto). Una sola difusión `set_queue` reemplaza la cola
+/// del PC, en vez de mandar pista a pista. Pura y testeable.
+({List<int> ids, int indice}) planSetQueueRemota(List<Pista> pistas, int index) {
+  if (pistas.isEmpty || index < 0 || index >= pistas.length) {
+    return (ids: const <int>[], indice: 0);
+  }
+  if (esIdLocal(pistas[index].id)) {
+    return (ids: const <int>[], indice: 0);
+  }
+  final int objetivo = pistas[index].id;
+  final List<int> ids = <int>[
+    for (final Pista p in pistas)
+      if (!esIdLocal(p.id)) p.id,
+  ];
+  return (ids: ids, indice: ids.indexOf(objetivo));
 }
 
 /// Plan de traspaso al **tomar el control en el teléfono** (Spotify Connect):
@@ -242,39 +249,41 @@ class PlaybackActions {
       return;
     }
     if (_remote) {
-      // Connect: la música local (id < 0) jamás suena en el PC. Si la pista
-      // tocada es local, no se hace nada; el resto de la colección se manda al
-      // PC ya filtrada (sin locales).
-      final Pista tocada = pistas[index];
-      if (esIdLocal(tocada.id)) {
+      // Connect: cola ESPEJADA. La música local (id < 0) jamás suena en el PC; se
+      // filtra y la colección entera se manda en UNA difusión (`set_queue`),
+      // reproduciendo el índice tocado. Si la pista tocada es local, no se hace
+      // nada.
+      final ({List<int> ids, int indice}) plan =
+          planSetQueueRemota(pistas, index);
+      if (plan.ids.isEmpty) {
         return;
       }
-      final List<int> ids = <int>[
-        for (final Pista p in pistas)
-          if (!esIdLocal(p.id)) p.id,
-      ];
-      final ({int play, List<int> next}) plan =
-          planColeccionRemota(ids, ids.indexOf(tocada.id));
-      _r.reproducirPista(plan.play);
-      for (final int id in plan.next) {
-        _r.encolarPista(id);
-      }
+      _r.establecerCola(plan.ids, plan.indice);
       return;
     }
     await _l.reproducir(pistas, index);
   }
 
-  /// Reproduce una colección desde el principio y la deja en aleatorio. Enruta al
-  /// destino activo (en local activa el aleatorio global si estaba apagado; en
-  /// remoto lo fuerza en el PC).
+  /// Reproduce una colección en aleatorio. Estilo Spotify: arranca en una pista
+  /// **al azar** (no siempre la primera) y deja el aleatorio encendido, de modo
+  /// que cada pulsación empieza distinto. Mismo comportamiento en TODAS las
+  /// colecciones (álbum/artista/playlist/"Tus me gusta"). Enruta al destino activo.
   Future<void> reproducirColeccionAleatorio(List<Pista> pistas) async {
     if (pistas.isEmpty) {
       return;
     }
-    await reproducirColeccion(pistas, 0);
     if (_remote) {
+      // En el PC: manda la cola y fuerza el aleatorio (el PC elige el orden).
+      await reproducirColeccion(pistas, 0);
       _r.setAleatorio(true);
-    } else if (!_ref.read(playerControllerProvider).shuffle) {
+      return;
+    }
+    // Local: arranca en una pista al azar de la colección y asegura el aleatorio
+    // global encendido (si estaba apagado, alternarAleatorio además rebaraja).
+    final int inicio =
+        pistas.length <= 1 ? 0 : Random().nextInt(pistas.length);
+    await reproducirColeccion(pistas, inicio);
+    if (!_ref.read(playerControllerProvider).shuffle) {
       await _l.alternarAleatorio();
     }
   }

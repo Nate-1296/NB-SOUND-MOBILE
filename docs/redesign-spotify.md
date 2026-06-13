@@ -575,3 +575,59 @@ Anterior/Siguiente = pista; enrutan por `PlaybackActions` (local o PC según
 destino). Captura Espacio en cualquier vista → arregla el "marco verde" inútil
 del Chromebook; los campos de texto consumen sus teclas antes (no disparan los
 atajos al escribir). `PlaybackActions.seekRelativo` nuevo.
+
+---
+
+## Connect bidireccional real + propagación PC→móvil + arreglos de build (2026-06-13)
+
+Cierra los 2 grandes pendientes (analyze limpio, **237 tests**, APKs release
+firmados). Todo lo de abajo es **as-built**, no aspiracional.
+
+### Connect bidireccional (PC ↔ móvil)
+- **DJ Privado**: el frame `estado` ahora trae `dj_activo` (lado PC); el reproductor
+  remoto (`remote_player_view`) muestra "DJ Privado en sesión" y **bloquea** los
+  controles mientras dura. Al cerrar la sesión, vuelve el control.
+- **Karaoke remoto**: comando WS `karaoke` (toggle) + botón en el reproductor remoto;
+  refleja `karaoke_activo`.
+- **Cola espejada**: comando `set_queue {ids, indice}` reemplaza la cola entera del PC
+  en UNA difusión (antes se mandaba pista a pista). `reproducirColeccion` en remoto usa
+  `planSetQueueRemota` (filtra locales, reubica el índice). Reordenar/quitar/vaciar la
+  cola del PC desde el móvil: `move_queue`/`remove_queue`/`clear_queue` + UI reordenable
+  en la hoja "Cola del PC". El PC **empuja `cola` en cada cambio** (no solo ante `queue`);
+  el cliente pide `queue` al conectar para poblarla.
+- **Reconexión acotada** (`planReconexion`, pura): backoff exponencial a 16 s; tras
+  agotar intentos la UI degrada a "sin conexión" (volver a local) pero **sigue
+  reintentando** para recuperarse solo cuando vuelva el PC/WiFi. Reinicia el backoff
+  al recibir cualquier frame. El 401/desvinculación lo detecta la capa de sync (re-emparejar).
+- Multi-dispositivo: el PC ya difunde a todos los sockets (verificado en el contrato).
+
+### Propagación PC→móvil (cambios del PC reflejados al sincronizar)
+- `SyncResult` ahora expone los ids del delta (pistas/álbumes/artistas cambiados) y de
+  los tombstones (solo recolecta delta en syncs incrementales, `since>0`).
+- `OfflinePropagation` (offline/application): tras cada sync, **borra la media offline
+  huérfana** de los tombstones (audio/letra/karaoke por pista; portada por álbum; foto
+  por artista) + sus filas; y **resetea** (`done`/`unavailable` → `none`) los recursos
+  descargados que cambiaron (letra/karaoke por pista; portada por álbum; foto por
+  artista) para que se rebajen con el contenido nuevo. Devuelve las pistas a re-encolar;
+  `SyncController` las encola antes del mantenimiento offline. `reseteable` es puro.
+- **Audio NO se resetea** ante cambios de metadata (caro; el mismatch de hash ya es no
+  fatal). **Lado PC (lo commitea el usuario)**: se bumpéa `sync_version` al **generar
+  karaoke** (jobs_repo) y al **enlazar/cambiar portada** de álbum (sync_repositorio), sin
+  lo cual la pista/álbum no llegaría en el delta y la propagación no dispararía.
+- **Estadísticas reactivas**: perfil/Descargas ya usan streams; `espacioOfflineProvider`
+  ahora recomputa también ante cambios de portadas/fotos (no solo audio), así los GB y
+  conteos suben/bajan al sincronizar/propagar borrados.
+
+### Arreglos vistos en la build
+- **Placeholders 404**: `Cover`/`ArtistAvatar`/`CoverMosaic` usaban `DecorationImage`,
+  que falla en silencio cuando el `/asset/cover/{id}` da 404 (álbum sin portada) →
+  cuadro gris. Ahora usan `Image` con **`errorBuilder`** que cae al placeholder tipado
+  (disco/persona/nota). Test de widget nuevo.
+- **Música local**: movida de Configuración a **General**, debajo de Descargas.
+- **Aleatorio**: "Aleatorio" arranca en una pista **al azar** (no siempre la 1ª) y deja
+  el aleatorio encendido, **igual en todas las colecciones** (álbum/artista/playlist/
+  "Tus me gusta"); `reproducirColeccionAleatorio` unificado.
+- **Cerrar la app deja de sonar**: `NbAudioHandler.onTaskRemoved` detiene la
+  reproducción al quitar la app de recientes (señal canónica Android/ChromeOS) y
+  `NbSoundApp` detiene el handler en `AppLifecycleState.detached` (cierre de ventana en
+  Chromebook). Segundo plano (paused/hidden) **sigue sonando** como antes.

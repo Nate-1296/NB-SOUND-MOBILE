@@ -30,6 +30,26 @@ class AssetsDao extends DatabaseAccessor<AppDatabase> with _$AssetsDaoMixin {
             ..where((t) => t.tipo.equals(tipo) & t.refId.equals(refId)))
           .getSingleOrNull();
 
+  /// Filas de un [tipo] para un conjunto de refIds, en lotes (límite de variables
+  /// de SQLite). Solo las que existen. Lo usa la propagación PC→móvil para
+  /// resetear portadas/fotos cuando el PC cambia el álbum/artista.
+  Future<List<AssetDescargado>> getEstadosPorIds(
+      String tipo, List<int> refIds) async {
+    if (refIds.isEmpty) {
+      return const <AssetDescargado>[];
+    }
+    final List<AssetDescargado> filas = <AssetDescargado>[];
+    const int lote = 800;
+    for (int i = 0; i < refIds.length; i += lote) {
+      final int fin = (i + lote < refIds.length) ? i + lote : refIds.length;
+      filas.addAll(await (select(assetsDescargados)
+            ..where((t) =>
+                t.tipo.equals(tipo) & t.refId.isIn(refIds.sublist(i, fin))))
+          .get());
+    }
+    return filas;
+  }
+
   Future<void> setEstado(String tipo, int refId, String estado) =>
       into(assetsDescargados).insertOnConflictUpdate(
         AssetsDescargadosCompanion.insert(

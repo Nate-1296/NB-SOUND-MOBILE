@@ -1,33 +1,44 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_sound_mobile/data/db/database.dart';
 import 'package:nb_sound_mobile/features/player/application/playback.dart';
 import 'package:nb_sound_mobile/features/player/application/player_controller.dart';
 
+Pista _p(int id) => Pista(
+      id: id,
+      titulo: 'T$id',
+      artistaNombre: 'A$id',
+      duracionSeg: 100,
+      syncVersion: 0,
+      origen: id < 0 ? 'local' : 'pc',
+    );
+
 void main() {
-  group('planColeccionRemota (reproducir colección en el PC)', () {
-    test('reproduce la pista del índice y encola solo el resto', () {
-      final ({int play, List<int> next}) plan =
-          planColeccionRemota(<int>[10, 20, 30, 40], 1);
-      expect(plan.play, 20);
-      expect(plan.next, <int>[30, 40]);
+  group('planSetQueueRemota (cola espejada hacia el PC)', () {
+    test('manda toda la colección y reubica el índice tocado', () {
+      final ({List<int> ids, int indice}) plan =
+          planSetQueueRemota(<Pista>[_p(10), _p(20), _p(30), _p(40)], 1);
+      expect(plan.ids, <int>[10, 20, 30, 40]);
+      expect(plan.indice, 1);
     });
 
-    test('desde el principio encola toda la cola siguiente', () {
-      final ({int play, List<int> next}) plan =
-          planColeccionRemota(<int>[10, 20, 30], 0);
-      expect(plan.play, 10);
-      expect(plan.next, <int>[20, 30]);
+    test('filtra la música local (id < 0) y reubica el índice', () {
+      // [local(-1), 20, local(-2), 40], se toca el índice 3 (id 40).
+      final ({List<int> ids, int indice}) plan =
+          planSetQueueRemota(<Pista>[_p(-1), _p(20), _p(-2), _p(40)], 3);
+      expect(plan.ids, <int>[20, 40]); // sin locales
+      expect(plan.indice, 1); // 40 quedó en la posición 1 de la lista filtrada
     });
 
-    test('última pista: nada que encolar', () {
-      final ({int play, List<int> next}) plan =
-          planColeccionRemota(<int>[10, 20, 30], 2);
-      expect(plan.play, 30);
-      expect(plan.next, <int>[]);
+    test('si la pista tocada es local, no se hace nada (ids vacío)', () {
+      final ({List<int> ids, int indice}) plan =
+          planSetQueueRemota(<Pista>[_p(-1), _p(20)], 0);
+      expect(plan.ids, isEmpty);
     });
 
-    test('índice fuera de rango se acota', () {
-      expect(planColeccionRemota(<int>[10, 20], -5).play, 10);
-      expect(planColeccionRemota(<int>[10, 20], 9).play, 20);
+    test('lista vacía o índice fuera de rango ⇒ ids vacío', () {
+      expect(planSetQueueRemota(<Pista>[], 0).ids, isEmpty);
+      expect(planSetQueueRemota(<Pista>[_p(10)], 5).ids, isEmpty);
+      expect(planSetQueueRemota(<Pista>[_p(10)], -1).ids, isEmpty);
     });
   });
 

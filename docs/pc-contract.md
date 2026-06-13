@@ -327,9 +327,14 @@ reproductor del PC. **Esquema plano**:
   "modo_repeticion": "ninguno",    // "ninguno" | "una" | "todas" (string del PC)
   "aleatorio": false,
   "karaoke_activo": false,
-  "indice_cola": 4
+  "indice_cola": 4,
+  "dj_activo": false               // true si hay sesión DJ Privado (el PC tiene el
+                                   // control global; el móvil bloquea sus comandos)
 }
 ```
+> `dj_activo` es **aditivo**: si el PC no lo envía (versión vieja) el móvil asume
+> `false`. Cuando es `true`, el cliente muestra "DJ Privado en sesión" y deshabilita
+> los controles hasta que la sesión termine (el PC vuelve a responder a comandos).
 
 ### 5.2 Comandos que envía el móvil (móvil → PC)
 **Esquema canónico**: `{ "tipo": "comando", "accion": "<accion>", ...args }`.
@@ -347,6 +352,13 @@ reproductor del PC. **Esquema plano**:
 | `repeat` | `{ "modo": "ninguno|una|todas" }` | modo de repetición |
 | `shuffle` | `{ "activo": true }` | aleatorio on/off |
 | `queue` | — | el PC responde con un frame `cola` (ver 5.4) |
+| `karaoke` | — | alterna el instrumental (karaoke) de la pista en curso |
+| `set_queue` | `{ "ids": [3,1,2], "indice": 1 }` | **cola espejada**: reemplaza la cola del PC por esas pistas (ids de biblioteca) y reproduce el índice dado |
+| `move_queue` | `{ "desde": 0, "hasta": 2 }` | reordena un ítem de la cola del PC |
+| `remove_queue` | `{ "indice": 1 }` | quita el ítem N de la cola del PC |
+| `clear_queue` | — | vacía la cola del PC manteniendo la pista en curso |
+| `reproducir_pista` | `{ "pista_id": 7, "posicion_seg": 0 }` | handoff: reproduce esa pista en el PC (saltando a la posición) |
+| `encolar_pista` | `{ "pista_id": 7 }` | encola esa pista en el PC (añade al final) |
 
 Por cada comando el PC responde un **ack**:
 ```jsonc
@@ -361,12 +373,16 @@ Por cada comando el PC responde un **ack**:
 { "tipo": "error", "detalle": "json_invalido" }
 ```
 
-### 5.4 Frame de cola (respuesta a `queue`)
+### 5.4 Frame de cola (respuesta a `queue` y **push automático**)
 ```jsonc
 { "tipo": "cola",
   "items": [ { "id": 123, "titulo": "...", "artista": "...", "album": "...", "duracion_seg": 320.4 } ],
   "indice": 4 }
 ```
+El PC publica este frame **ante cada cambio de la cola** (no solo cuando el móvil
+envía `queue`), por broadcast a todos los clientes WS, para que la **cola espejada**
+del móvil se mantenga en vivo. Al conectar, el cliente envía un `queue` para poblarla
+de inmediato.
 
 ---
 

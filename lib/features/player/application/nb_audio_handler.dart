@@ -310,6 +310,17 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     await super.stop();
   }
 
+  /// El usuario cerró la app (la quitó de recientes / cerró la ventana en
+  /// ChromeOS): se detiene la reproducción y se retira el servicio en primer
+  /// plano, en vez de seguir sonando con la app "cerrada". Es la señal canónica
+  /// de Android para "app cerrada" (distinta de ir a segundo plano, donde la
+  /// música SÍ debe seguir). Sin esto, en Chromebook el audio seguía tras cerrar.
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+    await super.onTaskRemoved();
+  }
+
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async =>
       _player?.setShuffleModeEnabled(shuffleMode == AudioServiceShuffleMode.all);

@@ -14,6 +14,7 @@ import '../../../data/db/database.dart';
 import '../../library/application/library_providers.dart';
 import '../data/download_repository.dart';
 import '../data/offline_store.dart';
+import 'offline_propagation.dart';
 
 /// Convención de rutas de la media offline, anclada en el directorio de la app.
 final Provider<OfflineStore> offlineStoreProvider = Provider<OfflineStore>(
@@ -33,6 +34,17 @@ final Provider<DownloadRepository> downloadRepositoryProvider =
     ),
   );
 });
+
+/// Propagación PC→móvil: borra media offline huérfana de los tombstones y
+/// resetea recursos descargados que el PC cambió. Ver [OfflinePropagation].
+final Provider<OfflinePropagation> offlinePropagationProvider =
+    Provider<OfflinePropagation>(
+  (Ref ref) => OfflinePropagation(
+    db: ref.watch(databaseProvider),
+    store: ref.watch(offlineStoreProvider),
+    downloads: ref.watch(downloadRepositoryProvider),
+  ),
+);
 
 /// Ids de pistas con audio descargado (reactivo; resuelve reproducción offline).
 final StreamProvider<Set<int>> descargadasProvider =
@@ -106,11 +118,15 @@ final StreamProvider<int> totalPistasProvider = StreamProvider<int>(
   (Ref ref) => ref.watch(catalogDaoProvider).watchTotalPistas(),
 );
 
-/// Espacio en disco por categoría. Se recalcula cuando cambia el resumen de
-/// descargas (algo se bajó o se borró), no en cada frame.
+/// Espacio en disco por categoría. Se recalcula cuando cambia algo descargado
+/// (audio/letra/karaoke vía el resumen, o portadas/fotos vía sus conteos), no en
+/// cada frame. Así los GB del perfil/Descargas suben y bajan al sincronizar/
+/// propagar borrados del PC, no solo al bajar audio.
 final FutureProvider<EspacioOffline> espacioOfflineProvider =
     FutureProvider<EspacioOffline>((Ref ref) async {
   ref.watch(resumenDescargasProvider);
+  ref.watch(conteoCoversProvider);
+  ref.watch(conteoArtistasProvider);
   return ref.watch(offlineStoreProvider).calcularEspacio();
 });
 
@@ -294,6 +310,11 @@ class DownloadQueueController extends Notifier<DownloadQueueState> {
   AssetsDao get _assets => ref.read(assetsDaoProvider);
 
   Future<void> encolarPista(int pistaId) => _enqueue(<int>[pistaId]);
+
+  /// Encola un conjunto de pistas (la cola filtra las ya completas). Lo usa la
+  /// propagación PC→móvil para rebajar los recursos que reseteó tras un sync.
+  Future<void> encolarPistas(Iterable<int> pistaIds) =>
+      _enqueue(pistaIds.toList());
 
   Future<void> encolarAlbum(int albumId) async {
     final List<Pista> pistas =

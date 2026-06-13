@@ -69,6 +69,14 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
             estado == AppLifecycleState.hidden) {
           ref.read(playerControllerProvider.notifier).guardarSesion();
         }
+        // Al CERRAR la app (no solo segundo plano): detiene la reproducción para
+        // que no siga sonando con la app cerrada. En Chromebook, cerrar la ventana
+        // emite `detached`; el `onTaskRemoved` nativo del handler cubre el cierre
+        // desde recientes. Se guarda la sesión antes (para restaurar al reabrir).
+        if (estado == AppLifecycleState.detached) {
+          ref.read(playerControllerProvider.notifier).guardarSesion();
+          ref.read(audioHandlerProvider).stop();
+        }
         _enPrimerPlano = resumed;
       },
     );

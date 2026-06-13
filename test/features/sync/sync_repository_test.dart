@@ -251,4 +251,66 @@ void main() {
     expect(ids, <int>[100, 101]); // sin duplicados
     expect(await db.syncStateDao.getUltimaSyncVersion(), 30);
   });
+
+  test('sync incremental (since>0) recolecta ids de delta y de tombstones',
+      () async {
+    // Hay una sync previa: el delta es incremental, no la primera carga.
+    await db.syncStateDao.setUltimaSyncVersion(5);
+
+    final SyncRepository repo = _repoWith(db, (RequestOptions o) {
+      if (o.path.contains('/history')) {
+        return (200, <String, dynamic>{'ok': true});
+      }
+      return (
+        200,
+        <String, dynamic>{
+          'has_more': false,
+          'sync_version_actual': 9,
+          'artistas': <Map<String, dynamic>>[
+            <String, dynamic>{'id': 5, 'nombre': 'A', 'sync_version': 6},
+          ],
+          'albums': <Map<String, dynamic>>[
+            <String, dynamic>{'id': 10, 'titulo': 'Disc', 'sync_version': 7},
+          ],
+          'pistas': <Map<String, dynamic>>[_pista(100, 'Cambiada')],
+          'tombstones': <Map<String, dynamic>>[
+            <String, dynamic>{'entidad': 'pista', 'entidad_id': 200},
+            <String, dynamic>{'entidad': 'album', 'entidad_id': 11},
+            <String, dynamic>{'entidad': 'artista', 'entidad_id': 6},
+          ],
+        }
+      );
+    });
+
+    final SyncResult r = await repo.sync(_pc);
+    expect(r.pistasDelta, <int>[100]);
+    expect(r.albumsDelta, <int>[10]);
+    expect(r.artistasDelta, <int>[5]);
+    expect(r.pistasBorradas, <int>[200]);
+    expect(r.albumsBorrados, <int>[11]);
+    expect(r.artistasBorrados, <int>[6]);
+  });
+
+  test('primera sync (since=0) NO recolecta delta pero sí tombstones', () async {
+    final SyncRepository repo = _repoWith(db, (RequestOptions o) {
+      if (o.path.contains('/history')) {
+        return (200, <String, dynamic>{'ok': true});
+      }
+      return (
+        200,
+        <String, dynamic>{
+          'has_more': false,
+          'sync_version_actual': 3,
+          'pistas': <Map<String, dynamic>>[_pista(100, 'Nueva')],
+          'tombstones': <Map<String, dynamic>>[
+            <String, dynamic>{'entidad': 'pista', 'entidad_id': 200},
+          ],
+        }
+      );
+    });
+
+    final SyncResult r = await repo.sync(_pc);
+    expect(r.pistasDelta, isEmpty); // primera carga: nada que propagar
+    expect(r.pistasBorradas, <int>[200]); // los borrados sí viajan siempre
+  });
 }

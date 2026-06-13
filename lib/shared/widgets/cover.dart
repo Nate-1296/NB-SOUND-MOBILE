@@ -56,8 +56,11 @@ class Cover extends StatelessWidget {
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
     final bool hasImage = image != null;
-    final bool usePlaceholder =
-        !hasImage && gradient == null && kind != null && overlay == null;
+    // Respaldo a mostrar cuando NO hay imagen o cuando la imagen falla al cargar
+    // (p. ej. un /asset/cover/{id} que el PC responde 404 porque el álbum no
+    // tiene portada): se usa tanto en el caso sin imagen como en el errorBuilder,
+    // así nunca queda un cuadrado gris vacío.
+    final Widget? fallback = _fallback();
     return Container(
       width: size,
       height: size,
@@ -65,9 +68,6 @@ class Cover extends StatelessWidget {
         color: c.bg3,
         gradient: hasImage ? null : gradient,
         borderRadius: BorderRadius.circular(radius),
-        image: hasImage
-            ? DecorationImage(image: image!, fit: BoxFit.cover)
-            : null,
         boxShadow: shadow
             ? const <BoxShadow>[
                 BoxShadow(
@@ -79,14 +79,35 @@ class Cover extends StatelessWidget {
             : null,
       ),
       clipBehavior: Clip.antiAlias,
-      child: usePlaceholder
-          ? CoverPlaceholder(
-              kind: kind!,
-              seed: coverSeed,
-              animated: animatedPlaceholder,
+      child: hasImage
+          ? Image(
+              image: image!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              // La imagen 404/rota cae al respaldo tipado en vez de quedar gris.
+              errorBuilder: (BuildContext ctx, Object e, StackTrace? s) =>
+                  fallback ?? const SizedBox.shrink(),
             )
-          : overlay,
+          : fallback,
     );
+  }
+
+  /// Respaldo: overlay explícito > placeholder tipado (si hay [kind] y no hay
+  /// [gradient]) > nada (deja ver el [gradient]/color de fondo).
+  Widget? _fallback() {
+    if (overlay != null) {
+      return overlay;
+    }
+    if (kind != null && gradient == null) {
+      return CoverPlaceholder(
+        kind: kind!,
+        seed: coverSeed,
+        animated: animatedPlaceholder,
+      );
+    }
+    return null;
   }
 }
 
@@ -120,16 +141,28 @@ class ArtistAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
     final bool hasImage = image != null;
+    final Widget respaldo = LayoutBuilder(
+      builder: (BuildContext ctx, BoxConstraints cons) {
+        final double dim = math.min(
+          cons.maxWidth.isFinite ? cons.maxWidth : (size ?? 64),
+          cons.maxHeight.isFinite ? cons.maxHeight : (size ?? 64),
+        );
+        final double iconSize = (dim * iconSizeFactor).clamp(14.0, 120.0);
+        final Widget icon = Icon(
+          iconForCoverKind(CoverKind.artist),
+          size: iconSize,
+          color: c.text3,
+        );
+        return Center(child: animated ? Breathing(child: icon) : icon);
+      },
+    );
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: c.bg3,
         shape: BoxShape.circle,
-        gradient: hasImage ? null : coverPlaceholderGradient(c, seed),
-        image: hasImage
-            ? DecorationImage(image: image!, fit: BoxFit.cover)
-            : null,
+        gradient: coverPlaceholderGradient(c, seed),
         boxShadow: shadow
             ? const <BoxShadow>[
                 BoxShadow(
@@ -140,24 +173,20 @@ class ArtistAvatar extends StatelessWidget {
               ]
             : null,
       ),
+      clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
+      // La foto 404/rota deja ver el respaldo (icono de persona), no un círculo gris.
       child: hasImage
-          ? null
-          : LayoutBuilder(
-              builder: (BuildContext ctx, BoxConstraints cons) {
-                final double dim = math.min(
-                  cons.maxWidth.isFinite ? cons.maxWidth : (size ?? 64),
-                  cons.maxHeight.isFinite ? cons.maxHeight : (size ?? 64),
-                );
-                final double iconSize = (dim * iconSizeFactor).clamp(14.0, 120.0);
-                final Widget icon = Icon(
-                  iconForCoverKind(CoverKind.artist),
-                  size: iconSize,
-                  color: c.text3,
-                );
-                return animated ? Breathing(child: icon) : icon;
-              },
-            ),
+          ? Image(
+              image: image!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (BuildContext ctx, Object e, StackTrace? s) =>
+                  respaldo,
+            )
+          : respaldo,
     );
   }
 }
@@ -206,8 +235,15 @@ class CoverMosaic extends StatelessWidget {
         children: <Widget>[
           for (final CoverTile tile in cells)
             switch (tile) {
-              CoverImageTile(:final ImageProvider image) =>
-                Image(image: image, fit: BoxFit.cover),
+              // La celda con imagen 404/rota cae al respaldo de pista (no queda
+              // un hueco vacío en el mosaico).
+              CoverImageTile(:final ImageProvider image) => Image(
+                  image: image,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (BuildContext ctx, Object e, StackTrace? s) =>
+                      const CoverPlaceholder(kind: CoverKind.track),
+                ),
               CoverFallbackTile(:final CoverKind kind, :final Object? seed) =>
                 CoverPlaceholder(kind: kind, seed: seed),
             },

@@ -49,6 +49,25 @@ class DownloadsDao extends DatabaseAccessor<AppDatabase>
       (select(descargasAudio)..where((t) => t.pistaId.equals(pistaId)))
           .getSingleOrNull();
 
+  /// Filas de descarga de un conjunto de pistas, en lotes (límite de variables de
+  /// SQLite). Solo devuelve las pistas que YA tienen fila (las offline-trackeadas);
+  /// las demás simplemente faltan. Lo usa la propagación PC→móvil para resetear
+  /// recursos de pistas ya descargadas cuando el PC las re-etiqueta.
+  Future<List<DescargaAudio>> getEstadosPorIds(List<int> ids) async {
+    if (ids.isEmpty) {
+      return const <DescargaAudio>[];
+    }
+    final List<DescargaAudio> filas = <DescargaAudio>[];
+    const int lote = 800;
+    for (int i = 0; i < ids.length; i += lote) {
+      final int fin = (i + lote < ids.length) ? i + lote : ids.length;
+      filas.addAll(await (select(descargasAudio)
+            ..where((t) => t.pistaId.isIn(ids.sublist(i, fin))))
+          .get());
+    }
+    return filas;
+  }
+
   Future<void> upsert(DescargasAudioCompanion companion) =>
       into(descargasAudio).insertOnConflictUpdate(companion);
 

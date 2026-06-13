@@ -21,6 +21,9 @@ class RemotePlayerView extends ConsumerWidget {
     final RemoteState s = ref.watch(remoteControllerProvider);
     final RemoteController ctrl = ref.read(remoteControllerProvider.notifier);
     final RemotePistaDto? p = s.pista;
+    // En sesión de DJ Privado el PC tiene el control global: el móvil solo informa,
+    // los comandos quedan bloqueados hasta que la sesión termine.
+    final bool dj = s.estado.djActivo;
     final ImageProvider? cover = ref.watch(coverResolverProvider).imageFor(
           p?.coverUrl,
           cacheWidth: coverCachePx(context, 300),
@@ -34,6 +37,7 @@ class RemotePlayerView extends ConsumerWidget {
           child: Column(
             children: <Widget>[
               _header(context, ref, c, s),
+              if (dj) _djBanner(c),
               const Spacer(),
               Cover(
                 image: cover,
@@ -83,26 +87,65 @@ class RemotePlayerView extends ConsumerWidget {
                   ),
                 ],
               ),
-              _scrubber(context, c, s, ctrl),
-              const SizedBox(height: 4),
-              _controls(c, s, ctrl),
-              const SizedBox(height: 8),
-              _volumen(c, s, ctrl),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () {
-                  ctrl.pedirCola();
-                  _mostrarCola(context, ref);
-                },
-                icon: Icon(AppIcons.queue, size: 18, color: c.text2),
-                label: Text(
-                  'Cola del PC',
-                  style: TextStyle(
-                    fontFamily: NbFonts.ui,
-                    fontWeight: FontWeight.w600,
-                    color: c.text2,
+              // Los controles de transporte se bloquean durante DJ Privado.
+              IgnorePointer(
+                ignoring: dj,
+                child: Opacity(
+                  opacity: dj ? 0.4 : 1,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      _scrubber(context, c, s, ctrl),
+                      const SizedBox(height: 4),
+                      _controls(c, s, ctrl),
+                      const SizedBox(height: 8),
+                      _volumen(c, s, ctrl),
+                    ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  IgnorePointer(
+                    ignoring: dj,
+                    child: Opacity(
+                      opacity: dj ? 0.4 : 1,
+                      child: TextButton.icon(
+                        onPressed: p != null ? ctrl.alternarKaraoke : null,
+                        icon: Icon(
+                          AppIcons.mic,
+                          size: 18,
+                          color: s.estado.karaokeActivo ? c.accent : c.text2,
+                        ),
+                        label: Text(
+                          'Karaoke',
+                          style: TextStyle(
+                            fontFamily: NbFonts.ui,
+                            fontWeight: FontWeight.w600,
+                            color: s.estado.karaokeActivo ? c.accent : c.text2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      ctrl.pedirCola();
+                      _mostrarCola(context, ref, dj);
+                    },
+                    icon: Icon(AppIcons.queue, size: 18, color: c.text2),
+                    label: Text(
+                      'Cola del PC',
+                      style: TextStyle(
+                        fontFamily: NbFonts.ui,
+                        fontWeight: FontWeight.w600,
+                        color: c.text2,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
             ],
@@ -161,6 +204,36 @@ class RemotePlayerView extends ConsumerWidget {
           icon: Icon(AppIcons.cast, color: c.accent, size: 24),
         ),
       ],
+    );
+  }
+
+  Widget _djBanner(NbColors c) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.accent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.accent.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(AppIcons.mic, size: 18, color: c.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'DJ Privado en sesión — el PC tiene el control. Volverá al terminar '
+              'la sesión.',
+              style: TextStyle(
+                fontFamily: NbFonts.ui,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: c.text,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -278,7 +351,7 @@ class RemotePlayerView extends ConsumerWidget {
     );
   }
 
-  void _mostrarCola(BuildContext context, WidgetRef ref) {
+  void _mostrarCola(BuildContext context, WidgetRef ref, bool dj) {
     final NbColors c = context.nb;
     showModalBottomSheet<void>(
       context: context,
@@ -288,44 +361,102 @@ class RemotePlayerView extends ConsumerWidget {
         return Consumer(
           builder: (BuildContext ctx, WidgetRef r, _) {
             final RemoteState s = r.watch(remoteControllerProvider);
+            final RemoteController ctrl =
+                r.read(remoteControllerProvider.notifier);
             return SafeArea(
-              child: ListView(
-                shrinkWrap: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  for (int i = 0; i < s.cola.length; i++)
-                    ListTile(
-                      dense: true,
-                      onTap: () => r
-                          .read(remoteControllerProvider.notifier)
-                          .reproducirIndice(i),
-                      title: Text(
-                        s.cola[i].titulo,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: NbFonts.ui,
-                          fontWeight: FontWeight.w600,
-                          color: i == s.estado.indiceCola ? c.accent : c.text,
+                  // Cabecera: "Cola del PC" + vaciar (bloqueado en DJ).
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 8, 4),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            'Cola del PC',
+                            style: TextStyle(
+                              fontFamily: NbFonts.display,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: c.text,
+                            ),
+                          ),
                         ),
-                      ),
-                      subtitle: Text(
-                        s.cola[i].artista,
-                        style: TextStyle(
-                          fontFamily: NbFonts.ui,
-                          color: c.text2,
-                        ),
-                      ),
+                        if (s.cola.length > 1 && !dj)
+                          TextButton.icon(
+                            onPressed: ctrl.vaciarCola,
+                            icon: Icon(AppIcons.trash, size: 16, color: c.text2),
+                            label: Text(
+                              'Vaciar',
+                              style: TextStyle(
+                                fontFamily: NbFonts.ui,
+                                fontWeight: FontWeight.w600,
+                                color: c.text2,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
                   if (s.cola.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
                         'Cola vacía o no disponible.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: NbFonts.ui,
-                          color: c.text3,
-                        ),
+                        style: TextStyle(fontFamily: NbFonts.ui, color: c.text3),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ReorderableListView.builder(
+                        shrinkWrap: true,
+                        buildDefaultDragHandles: !dj,
+                        itemCount: s.cola.length,
+                        // `onReorderItem` ya entrega el índice destino ajustado.
+                        onReorderItem: (int oldIndex, int newIndex) {
+                          if (!dj && newIndex != oldIndex) {
+                            ctrl.moverEnCola(oldIndex, newIndex);
+                          }
+                        },
+                        itemBuilder: (BuildContext ctx, int i) {
+                          final RemotePistaDto it = s.cola[i];
+                          final bool actual = i == s.estado.indiceCola;
+                          return ListTile(
+                            key: ValueKey<int>(
+                                it.id != 0 ? it.id : i.hashCode ^ it.titulo.hashCode),
+                            dense: true,
+                            onTap: dj ? null : () => ctrl.reproducirIndice(i),
+                            title: Text(
+                              it.titulo,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: NbFonts.ui,
+                                fontWeight: FontWeight.w600,
+                                color: actual ? c.accent : c.text,
+                              ),
+                            ),
+                            subtitle: Text(
+                              it.artista,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: NbFonts.ui,
+                                color: c.text2,
+                              ),
+                            ),
+                            // No se quita la pista en curso (igual que en local).
+                            trailing: (actual || dj)
+                                ? null
+                                : IconButton(
+                                    icon: Icon(AppIcons.close,
+                                        size: 18, color: c.text3),
+                                    onPressed: () => ctrl.quitarDeCola(i),
+                                  ),
+                          );
+                        },
                       ),
                     ),
                 ],

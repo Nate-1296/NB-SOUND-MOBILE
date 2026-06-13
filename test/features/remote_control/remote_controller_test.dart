@@ -46,6 +46,16 @@ void main() {
       expect(e.modoRepeticion, 'todas');
       expect(e.aleatorio, isTrue);
       expect(e.indiceCola, 4);
+      expect(e.djActivo, isFalse); // ausente ⇒ default
+    });
+
+    test('RemoteEstadoDto parsea dj_activo cuando el PC lo envía', () {
+      final RemoteEstadoDto e = RemoteEstadoDto.fromJson(<String, dynamic>{
+        'tipo': 'estado',
+        'reproduciendo': false,
+        'dj_activo': true,
+      });
+      expect(e.djActivo, isTrue);
     });
 
     test('RemoteColaDto parsea items + índice', () {
@@ -118,15 +128,63 @@ void main() {
     expect(s.estado.volumen, 50);
     expect(s.estado.reproduciendo, isTrue);
 
+    // Al conectar, el cliente pide la cola para poblar la vista espejada.
+    await _waitUntil(() => recibidos.any(
+        (String r) => (jsonDecode(r) as Map<String, dynamic>)['accion'] == 'queue'));
+
     // Un comando viaja al PC con el esquema canónico.
     ctrl.buscarSeg(30);
-    await _waitUntil(() => recibidos.isNotEmpty);
-    final Map<String, dynamic> cmd =
-        jsonDecode(recibidos.first) as Map<String, dynamic>;
-    expect(cmd['tipo'], 'comando');
-    expect(cmd['accion'], 'seek');
-    expect(cmd['posicion_seg'], 30);
+    await _waitUntil(() => recibidos.any(
+        (String r) => (jsonDecode(r) as Map<String, dynamic>)['accion'] == 'seek'));
+    final Map<String, dynamic> seek = recibidos
+        .map((String r) => jsonDecode(r) as Map<String, dynamic>)
+        .firstWhere((Map<String, dynamic> m) => m['accion'] == 'seek');
+    expect(seek['tipo'], 'comando');
+    expect(seek['posicion_seg'], 30);
+
+    // Comandos nuevos de Connect: karaoke y cola espejada/manipulación.
+    ctrl.alternarKaraoke();
+    ctrl.establecerCola(<int>[3, 1, 2], 1);
+    ctrl.moverEnCola(0, 2);
+    ctrl.quitarDeCola(1);
+    ctrl.vaciarCola();
+    await _waitUntil(() => recibidos.any(
+        (String r) => (jsonDecode(r) as Map<String, dynamic>)['accion'] == 'clear_queue'));
+
+    Map<String, dynamic> porAccion(String accion) => recibidos
+        .map((String r) => jsonDecode(r) as Map<String, dynamic>)
+        .firstWhere((Map<String, dynamic> m) => m['accion'] == accion);
+
+    expect(porAccion('karaoke')['tipo'], 'comando');
+    final Map<String, dynamic> sq = porAccion('set_queue');
+    expect(sq['ids'], <int>[3, 1, 2]);
+    expect(sq['indice'], 1);
+    final Map<String, dynamic> mv = porAccion('move_queue');
+    expect(mv['desde'], 0);
+    expect(mv['hasta'], 2);
+    expect(porAccion('remove_queue')['indice'], 1);
+    expect(porAccion('clear_queue')['accion'], 'clear_queue');
 
     ctrl.desconectar();
+  });
+
+  group('planReconexion (backoff acotado del WS)', () {
+    test('backoff exponencial acotado a 16 s', () {
+      expect(planReconexion(1).delaySeconds, 1);
+      expect(planReconexion(2).delaySeconds, 2);
+      expect(planReconexion(3).delaySeconds, 4);
+      expect(planReconexion(4).delaySeconds, 8);
+      expect(planReconexion(5).delaySeconds, 16);
+      expect(planReconexion(9).delaySeconds, 16); // tope
+    });
+
+    test('degrada a "error" tras agotar los intentos pero sigue reintentando',
+        () {
+      expect(planReconexion(5).degradar, isFalse);
+      expect(planReconexion(6).degradar, isTrue);
+      expect(planReconexion(20).degradar, isTrue);
+      // Aun degradado, el retardo sigue siendo válido (sigue reintentando).
+      expect(planReconexion(20).delaySeconds, 16);
+    });
   });
 }

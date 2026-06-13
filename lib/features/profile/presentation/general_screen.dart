@@ -137,6 +137,12 @@ class GeneralScreen extends ConsumerWidget {
               label: 'Descargas',
               onTap: () => context.push('/descargas'),
             ),
+            _Tile(
+              icon: AppIcons.note,
+              label: 'Música local',
+              subtitle: 'La música guardada en este dispositivo',
+              onTap: () => context.push('/musica-local'),
+            ),
           ],
         ),
       ),

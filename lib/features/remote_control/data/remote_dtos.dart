@@ -34,6 +34,10 @@ abstract class RemoteEstadoDto with _$RemoteEstadoDto {
     @Default(false) bool aleatorio,
     @Default(false) bool karaokeActivo,
     @Default(0) int indiceCola,
+    // El PC está en sesión de DJ Privado: tiene el control global del audio y los
+    // comandos del móvil quedan bloqueados hasta que la sesión termine. El campo
+    // es aditivo; si el PC no lo envía (versión vieja), por defecto false.
+    @Default(false) bool djActivo,
   }) = _RemoteEstadoDto;
 
   factory RemoteEstadoDto.fromJson(Map<String, dynamic> json) =>
