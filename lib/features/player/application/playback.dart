@@ -19,40 +19,45 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
 
   /// Cambia a control remoto si hay un PC emparejado. Devuelve false si no.
   /// Handoff (Spotify Connect): pausa el móvil (solo un dispositivo suena) y
-  /// transfiere al PC la pista y posición actuales para que continúe allí.
+  /// **espeja la cola COMPLETA** en el PC —no solo la pista en curso— arrancando
+  /// en la pista que sonaba y conservando su posición, de modo que la cola
+  /// persista al cambiar de dispositivo.
   Future<bool> usarRemoto() async {
     final PairedPc? pc = await ref.read(secureStoreProvider).readPairing();
     if (pc == null) {
       return false;
     }
-    // Capturar lo que suena en el móvil antes de cambiar de destino.
+    // Captura la cola local COMPLETA (no solo la pista en curso) antes de cambiar
+    // de destino: se espeja entera en el PC para que la cola no se pierda.
     final PlayerState local = ref.read(playerControllerProvider);
-    final int? pistaId = local.current?.id;
-    final double posSeg = local.position.inMilliseconds / 1000.0;
+    final HandoffRemoto plan = planHandoffRemoto(
+      local.queue,
+      local.index,
+      local.position.inMilliseconds / 1000.0,
+    );
 
     final RemoteController r = ref.read(remoteControllerProvider.notifier);
     r.conectar(pc);
     state = PlaybackTarget.remote;
 
-    // Pausar el móvil y reproducir lo mismo en el PC (transferencia real). El PC
-    // solo expone `reproducir_pista` (que arranca la reproducción): el caso de
-    // partida —el usuario quiere oírlo en el PC— es reproducir, así que se
-    // transfiere y suena allí, mientras el teléfono queda en silencio. Una pista
-    // LOCAL (id < 0) NUNCA se transfiere al PC (no existe allí): el móvil queda
-    // en pausa y el PC sigue con su propio estado.
-    if (pistaId != null) {
+    if (plan.hayCola) {
+      // Pausa el móvil y reemplaza la cola del PC por la del teléfono en UNA
+      // difusión (`set_queue`), arrancando en la pista en curso y conservando su
+      // posición. La música local (id < 0) ya quedó filtrada (no existe allí).
       ref.read(playerControllerProvider.notifier).pausar();
-      if (!esIdLocal(pistaId)) {
-        r.reproducirPista(pistaId, posicionSeg: posSeg);
-      }
+      r.establecerCola(plan.ids, plan.indice, posicionSeg: plan.posicionSeg);
+    } else if (local.hasTrack) {
+      // Lo que suena es música local (no existe en el PC): solo se pausa el
+      // teléfono; el PC conserva su propio estado y su cola.
+      ref.read(playerControllerProvider.notifier).pausar();
     }
     return true;
   }
 
   /// Vuelve a reproducir en este teléfono. Handoff inverso (Spotify Connect): si
   /// el PC estaba sonando lo **pausa** (solo un dispositivo suena) y **trae** al
-  /// teléfono lo que sonaba en el PC —misma pista, posición y estado de
-  /// reproducción— en vez de dejar el teléfono con lo que tuviera en pausa.
+  /// teléfono la **cola COMPLETA** del PC —misma posición y estado— en vez de
+  /// dejar el teléfono solo con la pista en curso.
   Future<void> usarLocal() async {
     final RemoteState remoto = ref.read(remoteControllerProvider);
     final RemotePistaDto? pcPista = remoto.estado.pista;
@@ -62,6 +67,12 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
       posicionSeg: remoto.estado.posicionSeg,
       reproduciendo: remoto.estado.reproduciendo,
     );
+    // Cola espejada del PC (ids en orden) + índice en curso, capturados ANTES de
+    // desconectar (desconectar() vacía el estado remoto).
+    final List<int> colaIds = <int>[
+      for (final RemotePistaDto p in remoto.cola) p.id,
+    ];
+    final int indiceCola = remoto.estado.indiceCola;
 
     // Pausa el PC al tomar el control desde el teléfono (un solo dispositivo).
     if (plan.pausarPc) {
@@ -70,14 +81,23 @@ class PlaybackTargetController extends Notifier<PlaybackTarget> {
     ref.read(remoteControllerProvider.notifier).desconectar();
     state = PlaybackTarget.local;
 
-    // Traspasa la pista del PC al reproductor local (si existe en la biblioteca
-    // del teléfono): misma posición y estado (sonando/pausa).
-    if (plan.hayTraspaso) {
-      await ref.read(playerControllerProvider.notifier).reproducirIdRemota(
-            plan.pistaId!,
-            posicionSeg: plan.posicionSeg,
-            reproducir: plan.reproducir,
-          );
+    final PlayerController pc = ref.read(playerControllerProvider.notifier);
+    if (colaIds.isNotEmpty) {
+      // Trae la COLA COMPLETA del PC al teléfono (no solo la pista en curso):
+      // misma posición y estado de reproducción.
+      await pc.reproducirColaRemota(
+        colaIds,
+        indiceCola,
+        posicionSeg: plan.posicionSeg,
+        reproducir: plan.reproducir,
+      );
+    } else if (plan.hayTraspaso) {
+      // Degradación: si el PC no publicó la cola, al menos trae la pista en curso.
+      await pc.reproducirIdRemota(
+        plan.pistaId!,
+        posicionSeg: plan.posicionSeg,
+        reproducir: plan.reproducir,
+      );
     }
   }
 }
@@ -187,6 +207,57 @@ final Provider<NowPlaying> nowPlayingProvider = Provider<NowPlaying>((Ref ref) {
       if (!esIdLocal(p.id)) p.id,
   ];
   return (ids: ids, indice: ids.indexOf(objetivo));
+}
+
+/// Plan de handoff al **PC** al pasar el control desde el teléfono (Spotify
+/// Connect): espeja la cola local COMPLETA filtrando la música local (id < 0, no
+/// existe allí) y arranca en la pista en curso conservando su posición. Si no hay
+/// cola, el índice es inválido o la pista en curso es local, no hay nada que
+/// espejar (`hayCola == false`; el llamador solo pausa el móvil). Pura y testeable.
+class HandoffRemoto {
+  const HandoffRemoto({
+    required this.ids,
+    required this.indice,
+    required this.posicionSeg,
+  });
+
+  final List<int> ids;
+  final int indice;
+  final double posicionSeg;
+
+  bool get hayCola => ids.isNotEmpty;
+}
+
+HandoffRemoto planHandoffRemoto(
+  List<Pista> cola,
+  int index,
+  double posicionSeg,
+) {
+  if (cola.isEmpty || index < 0 || index >= cola.length) {
+    return const HandoffRemoto(ids: <int>[], indice: 0, posicionSeg: 0);
+  }
+  // La pista en curso es local: no existe en el PC, no se puede espejar
+  // arrancando ahí.
+  if (esIdLocal(cola[index].id)) {
+    return const HandoffRemoto(ids: <int>[], indice: 0, posicionSeg: 0);
+  }
+  final List<int> ids = <int>[
+    for (final Pista p in cola)
+      if (!esIdLocal(p.id)) p.id,
+  ];
+  // Índice de la pista en curso dentro de la lista filtrada: cuenta las no
+  // locales anteriores (exacto aun con ids repetidas en la cola).
+  int indice = 0;
+  for (int i = 0; i < index; i++) {
+    if (!esIdLocal(cola[i].id)) {
+      indice += 1;
+    }
+  }
+  return HandoffRemoto(
+    ids: ids,
+    indice: indice,
+    posicionSeg: posicionSeg < 0 ? 0 : posicionSeg,
+  );
 }
 
 /// Plan de traspaso al **tomar el control en el teléfono** (Spotify Connect):

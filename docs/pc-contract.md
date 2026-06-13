@@ -367,7 +367,7 @@ reproductor del PC. **Esquema plano**:
 | `shuffle` | `{ "activo": true }` | aleatorio on/off |
 | `queue` | — | el PC responde con un frame `cola` (ver 5.4) |
 | `karaoke` | — | alterna el instrumental (karaoke) de la pista en curso |
-| `set_queue` | `{ "ids": [3,1,2], "indice": 1 }` | **cola espejada**: reemplaza la cola del PC por esas pistas (ids de biblioteca) y reproduce el índice dado |
+| `set_queue` | `{ "ids": [3,1,2], "indice": 1, "posicion_seg": 0 }` | **cola espejada**: reemplaza la cola del PC por esas pistas (ids de biblioteca) y reproduce el índice dado. `posicion_seg` es **opcional** (> 0): tras cargar la cola, el PC salta a esa posición — se usa en el handoff con cola completa (al pasar el control del móvil al PC) para conservar dónde iba la pista |
 | `move_queue` | `{ "desde": 0, "hasta": 2 }` | reordena un ítem de la cola del PC |
 | `remove_queue` | `{ "indice": 1 }` | quita el ítem N de la cola del PC |
 | `clear_queue` | — | vacía la cola del PC manteniendo la pista en curso |

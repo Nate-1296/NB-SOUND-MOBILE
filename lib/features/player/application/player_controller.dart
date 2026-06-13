@@ -56,6 +56,38 @@ int indiceTrasMover(int current, int oldIndex, int newIndex) {
 int indiceTrasQuitar(int current, int index) =>
     index < current ? current - 1 : current;
 
+/// Mapea una cola remota del PC (sus [ids] en orden + el [indice] en curso) a
+/// pistas de la biblioteca local para traerla al teléfono (Spotify Connect). Las
+/// ids que no existan en el catálogo (no sincronizadas) se omiten; el índice se
+/// reubica sobre la lista resultante apuntando a la pista en curso, o —si esa no
+/// existe localmente— a la siguiente disponible. Pura y testeable (sin BD ni
+/// reproductor).
+({List<Pista> pistas, int index}) mapearColaRemota(
+  List<int> ids,
+  int indice,
+  Map<int, Pista> porId,
+) {
+  final List<Pista> pistas = <Pista>[];
+  int nuevoIndice = -1;
+  for (int i = 0; i < ids.length; i++) {
+    // Posición que ocuparía la pista en curso (o la siguiente, si esta falta).
+    if (i == indice) {
+      nuevoIndice = pistas.length;
+    }
+    final Pista? p = porId[ids[i]];
+    if (p != null) {
+      pistas.add(p);
+    }
+  }
+  if (pistas.isEmpty) {
+    return (pistas: pistas, index: 0);
+  }
+  if (nuevoIndice < 0 || nuevoIndice >= pistas.length) {
+    nuevoIndice = pistas.length - 1;
+  }
+  return (pistas: pistas, index: nuevoIndice);
+}
+
 /// Estado observable del reproductor local. El mismo contrato lo cumplirá el
 /// controlador remoto (Spotify Connect) en la tanda de control remoto.
 class PlayerState {
@@ -351,6 +383,43 @@ class PlayerController extends Notifier<PlayerState> {
       autoPlay: reproducir,
     );
     _registrarHistorial(0);
+    guardarSesion();
+  }
+
+  /// Traspaso de la COLA del PC al reproductor local (Spotify Connect): mapea
+  /// [ids] (la cola del PC, en orden) a pistas de la biblioteca, reubica el
+  /// [indice] en curso y reproduce desde ahí en [posicionSeg] respetando
+  /// [reproducir]. Las pistas que no existan localmente se omiten; si ninguna
+  /// existe, no hace nada (no había nada que traer). Reemplaza el traspaso de una
+  /// sola pista para que la cola entera persista al volver al teléfono.
+  Future<void> reproducirColaRemota(
+    List<int> ids,
+    int indice, {
+    double posicionSeg = 0,
+    bool reproducir = true,
+  }) async {
+    if (ids.isEmpty) {
+      return;
+    }
+    final Map<int, Pista> porId = await _catalog.getPistasPorIds(ids);
+    final ({List<Pista> pistas, int index}) m =
+        mapearColaRemota(ids, indice, porId);
+    if (m.pistas.isEmpty) {
+      return;
+    }
+    _handler.remote = ref.read(remoteMediaProvider);
+    _handler.karaokeId = null;
+    final List<Pista> fuentes = await _resolverFuentes(m.pistas);
+    state = state.copyWith(queue: m.pistas, index: m.index, karaoke: false);
+    _lastRecordedIndex = null;
+    await _handler.loadQueue(
+      fuentes,
+      m.index,
+      initialPosition: Duration(
+          milliseconds: (posicionSeg * 1000).round().clamp(0, 1 << 31)),
+      autoPlay: reproducir,
+    );
+    _registrarHistorial(m.index);
     guardarSesion();
   }
 

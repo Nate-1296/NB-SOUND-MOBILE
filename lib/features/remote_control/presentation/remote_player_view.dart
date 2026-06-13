@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -95,11 +97,11 @@ class RemotePlayerView extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      _scrubber(context, c, s, ctrl),
+                      _RemoteScrubber(state: s, ctrl: ctrl),
                       const SizedBox(height: 4),
                       _controls(c, s, ctrl),
                       const SizedBox(height: 8),
-                      _volumen(c, s, ctrl),
+                      _RemoteVolume(state: s, ctrl: ctrl),
                     ],
                   ),
                 ),
@@ -250,49 +252,6 @@ class RemotePlayerView extends ConsumerWidget {
     );
   }
 
-  Widget _scrubber(
-    BuildContext context,
-    NbColors c,
-    RemoteState s,
-    RemoteController ctrl,
-  ) {
-    return Column(
-      children: <Widget>[
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            activeTrackColor: c.accent,
-            inactiveTrackColor: c.line2,
-            thumbColor: c.accent,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-          ),
-          child: Slider(
-            value: s.progress,
-            onChanged: (_) {},
-            onChangeEnd: ctrl.buscarProgreso,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(formatClock(s.estado.posicionSeg), style: _t(c)),
-              Text(formatClock(s.estado.pista?.duracionSeg ?? 0), style: _t(c)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  TextStyle _t(NbColors c) => TextStyle(
-        fontFamily: NbFonts.ui,
-        fontSize: 11.5,
-        fontWeight: FontWeight.w500,
-        color: c.text3,
-      );
-
   Widget _controls(NbColors c, RemoteState s, RemoteController ctrl) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -344,24 +303,6 @@ class RemotePlayerView extends ConsumerWidget {
             size: 22,
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _volumen(NbColors c, RemoteState s, RemoteController ctrl) {
-    return Row(
-      children: <Widget>[
-        Icon(AppIcons.volume, size: 18, color: c.text2),
-        Expanded(
-          child: Slider(
-            value: (s.estado.volumen / 100).clamp(0.0, 1.0),
-            activeColor: c.accent,
-            inactiveColor: c.line2,
-            onChanged: (_) {},
-            onChangeEnd: (double v) => ctrl.setVolumen((v * 100).round()),
-          ),
-        ),
-        Text('${s.estado.volumen}', style: _t(c)),
       ],
     );
   }
@@ -478,6 +419,223 @@ class RemotePlayerView extends ConsumerWidget {
               ),
             );
           },
+        );
+      },
+    );
+  }
+}
+
+TextStyle _estiloTiempo(NbColors c) => TextStyle(
+      fontFamily: NbFonts.ui,
+      fontSize: 11.5,
+      fontWeight: FontWeight.w500,
+      color: c.text3,
+    );
+
+/// Slider deslizable de verdad para el reproductor remoto: el pulgar sigue al
+/// dedo mientras se arrastra (estado local), aplica el cambio EN VIVO al PC
+/// (acotado por [intervaloVivo], como deslizar nativamente en el PC) y el valor
+/// definitivo al soltar. Mientras se arrastra ignora el valor que publica el PC;
+/// al soltar mantiene la posición elegida hasta que el PC la refleje (evita el
+/// "salto atrás" con el último frame viejo en vuelo) o venza un tiempo de gracia.
+class _LiveSlider extends StatefulWidget {
+  const _LiveSlider({
+    required this.value,
+    required this.onLive,
+    required this.onChangeEnd,
+    required this.builder,
+    this.activeColor,
+    this.inactiveColor,
+    this.intervaloVivo = const Duration(milliseconds: 90),
+  });
+
+  /// Valor autoritativo que publica el PC (0..1).
+  final double value;
+
+  /// Aplica el cambio en vivo mientras se arrastra (acotado por [intervaloVivo]).
+  final ValueChanged<double> onLive;
+
+  /// Aplica el valor definitivo al soltar.
+  final ValueChanged<double> onChangeEnd;
+
+  /// Construye la UI alrededor del [slider] usando el valor mostrado (0..1), para
+  /// reflejar en vivo etiquetas (tiempo, porcentaje) durante el arrastre.
+  final Widget Function(BuildContext context, double mostrado, Widget slider)
+      builder;
+
+  final Color? activeColor;
+  final Color? inactiveColor;
+  final Duration intervaloVivo;
+
+  @override
+  State<_LiveSlider> createState() => _LiveSliderState();
+}
+
+class _LiveSliderState extends State<_LiveSlider> {
+  double? _arrastre; // valor mostrado mientras se arrastra (null = sigue al PC)
+  bool _arrastrando = false;
+  bool _esperandoEco = false; // soltado: mantener override hasta que el PC eco
+  DateTime _ultimoVivo = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _graciaEco;
+
+  @override
+  void didUpdateWidget(_LiveSlider old) {
+    super.didUpdateWidget(old);
+    // Tras soltar, suelta el override SOLO cuando el PC se acerca al valor
+    // elegido (la búsqueda/volumen ya llegó): así no se salta a un frame viejo
+    // aún en vuelo. La gracia (timer) cubre el caso de que el PC no lo confirme.
+    if (!_arrastrando &&
+        _esperandoEco &&
+        widget.value != old.value &&
+        (_arrastre == null || (widget.value - _arrastre!).abs() <= 0.04)) {
+      _soltarEco();
+    }
+  }
+
+  void _soltarEco() {
+    _graciaEco?.cancel();
+    _graciaEco = null;
+    if (!mounted) {
+      _arrastre = null;
+      _esperandoEco = false;
+      return;
+    }
+    setState(() {
+      _arrastre = null;
+      _esperandoEco = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _graciaEco?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double mostrado = (_arrastre ?? widget.value).clamp(0.0, 1.0);
+    final Widget slider = Slider(
+      value: mostrado,
+      activeColor: widget.activeColor,
+      inactiveColor: widget.inactiveColor,
+      onChangeStart: (_) {
+        _arrastrando = true;
+        _esperandoEco = false;
+        _graciaEco?.cancel();
+      },
+      onChanged: (double v) {
+        setState(() => _arrastre = v);
+        final DateTime ahora = DateTime.now();
+        if (ahora.difference(_ultimoVivo) >= widget.intervaloVivo) {
+          _ultimoVivo = ahora;
+          widget.onLive(v);
+        }
+      },
+      onChangeEnd: (double v) {
+        _arrastrando = false;
+        widget.onChangeEnd(v);
+        // Mantén la posición elegida hasta que el PC la refleje (evita el salto
+        // atrás); suéltala igual tras la gracia por si el PC no la confirma.
+        setState(() {
+          _arrastre = v;
+          _esperandoEco = true;
+        });
+        _graciaEco?.cancel();
+        _graciaEco = Timer(const Duration(seconds: 2), _soltarEco);
+      },
+    );
+    return widget.builder(context, mostrado, slider);
+  }
+}
+
+/// Barra de reproducción del PC: deslizable de verdad (el tiempo sigue al dedo) y
+/// busca en vivo en el PC mientras se arrastra.
+class _RemoteScrubber extends StatelessWidget {
+  const _RemoteScrubber({required this.state, required this.ctrl});
+  final RemoteState state;
+  final RemoteController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    final double dur = state.estado.pista?.duracionSeg ?? 0;
+    return _LiveSlider(
+      value: state.progress,
+      // Acotado a ~180 ms para que la búsqueda en vivo no sature al PC.
+      intervaloVivo: const Duration(milliseconds: 180),
+      onLive: (double p) {
+        if (dur > 0) {
+          ctrl.buscarProgreso(p);
+        }
+      },
+      onChangeEnd: (double p) {
+        if (dur > 0) {
+          ctrl.buscarProgreso(p);
+        }
+      },
+      builder: (BuildContext context, double mostrado, Widget slider) {
+        return Column(
+          children: <Widget>[
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 4,
+                activeTrackColor: c.accent,
+                inactiveTrackColor: c.line2,
+                thumbColor: c.accent,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 16),
+              ),
+              child: slider,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(formatClock(dur * mostrado), style: _estiloTiempo(c)),
+                  Text(formatClock(dur), style: _estiloTiempo(c)),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Volumen del PC: deslizable de verdad y aplicado en vivo mientras se arrastra
+/// (como mover el deslizador directamente en el PC).
+class _RemoteVolume extends StatelessWidget {
+  const _RemoteVolume({required this.state, required this.ctrl});
+  final RemoteState state;
+  final RemoteController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final NbColors c = context.nb;
+    return _LiveSlider(
+      value: (state.estado.volumen / 100).clamp(0.0, 1.0),
+      activeColor: c.accent,
+      inactiveColor: c.line2,
+      onLive: (double v) => ctrl.setVolumen((v * 100).round()),
+      onChangeEnd: (double v) => ctrl.setVolumen((v * 100).round()),
+      builder: (BuildContext context, double mostrado, Widget slider) {
+        return Row(
+          children: <Widget>[
+            Icon(AppIcons.volume, size: 18, color: c.text2),
+            Expanded(child: slider),
+            SizedBox(
+              width: 30,
+              child: Text(
+                '${(mostrado * 100).round()}',
+                textAlign: TextAlign.end,
+                style: _estiloTiempo(c),
+              ),
+            ),
+          ],
         );
       },
     );

@@ -892,7 +892,20 @@ class _ErrorView extends ConsumerWidget {
         'El código expiró. Genera uno nuevo en el PC e inténtalo otra vez.',
     'error_red':
         'No se pudo conectar con el PC. Verifica que ambos estén en la misma '
-        'red local.',
+        'red local y que el firewall del PC no bloquee la conexión.',
+    'red_timeout':
+        'El PC no respondió a tiempo. Aun en la misma red, suele deberse al '
+        'firewall del PC o al "aislamiento de clientes" del Wi-Fi (frecuente en '
+        'redes de invitados o de malla), que impide que los dispositivos se '
+        'vean entre sí. Revisa el firewall del PC y desactiva el aislamiento, o '
+        'prueba otra red.',
+    'red_inalcanzable':
+        'No se pudo abrir la conexión con el PC. Asegúrate de que el servidor '
+        'esté encendido, que el firewall del PC permita NB Sound y que el Wi-Fi '
+        'no aísle los dispositivos entre sí.',
+    'red_tls':
+        'El certificado del PC cambió. Desvincula y vuelve a vincular (o vuelve '
+        'a escanear el QR) para confiar en el nuevo.',
     'respuesta_invalida': 'El PC respondió algo inesperado.',
     'pc_no_encontrado':
         'No se encontró NB Sound en esa IP. Revisa la dirección y que el '

@@ -124,10 +124,18 @@ class RemoteController extends Notifier<RemoteState> {
   // ── Cola espejada (móvil → PC) ───────────────────────────────────────────
   /// Reemplaza la cola COMPLETA del PC por [ids] y reproduce el índice [indice]
   /// (colas espejadas reales: una sola difusión, no pista a pista). Requiere el
-  /// PC con el comando `set_queue`.
-  void establecerCola(List<int> ids, int indice) => _comando(
+  /// PC con el comando `set_queue`. Si se indica [posicionSeg] (> 0), el PC salta
+  /// a esa posición tras cargar la cola: se usa en el handoff con cola completa
+  /// (al pasar el control al PC) para conservar dónde iba la pista. Aditivo: un
+  /// PC viejo ignora la clave extra.
+  void establecerCola(List<int> ids, int indice, {double posicionSeg = 0}) =>
+      _comando(
         'set_queue',
-        <String, dynamic>{'ids': ids, 'indice': indice},
+        <String, dynamic>{
+          'ids': ids,
+          'indice': indice,
+          if (posicionSeg > 0) 'posicion_seg': posicionSeg,
+        },
       );
 
   /// Mueve un ítem de la cola del PC de [desde] a [hasta] (reordenar).

@@ -274,10 +274,26 @@ class PairingRepository {
   static Map<String, dynamic> _asMap(dynamic data) =>
       data is Map<String, dynamic> ? data : <String, dynamic>{};
 
+  /// Traduce un fallo de red a un código estable para la UI. Distingue la causa
+  /// real en vez del genérico "misma red": un timeout o una conexión rechazada
+  /// con ambos en la misma WiFi suele ser un firewall del PC o el **aislamiento
+  /// de clientes** del punto de acceso (redes de invitados/algunas mallas), no la
+  /// red en sí; el mensaje genérico despistaba al usuario.
   static String _codeFor(DioException e) {
     if (e.response?.statusCode == 401) {
       return 'token_invalido_o_expirado';
     }
-    return 'error_red';
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'red_timeout';
+      case DioExceptionType.badCertificate:
+        return 'red_tls';
+      case DioExceptionType.connectionError:
+        return 'red_inalcanzable';
+      default:
+        return 'error_red';
+    }
   }
 }

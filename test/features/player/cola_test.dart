@@ -42,6 +42,100 @@ void main() {
     });
   });
 
+  group('planHandoffRemoto (pasar el control al PC con cola completa)', () {
+    test('espeja la cola entera y reubica el índice, conservando posición', () {
+      final HandoffRemoto plan = planHandoffRemoto(
+        <Pista>[_p(10), _p(20), _p(30), _p(40)],
+        2,
+        37.5,
+      );
+      expect(plan.hayCola, isTrue);
+      expect(plan.ids, <int>[10, 20, 30, 40]);
+      expect(plan.indice, 2);
+      expect(plan.posicionSeg, 37.5);
+    });
+
+    test('filtra la música local (id < 0) y cuenta solo las no locales', () {
+      // [local(-1), 20, local(-2), 40, 50] sonando el índice 3 (id 40).
+      final HandoffRemoto plan = planHandoffRemoto(
+        <Pista>[_p(-1), _p(20), _p(-2), _p(40), _p(50)],
+        3,
+        5,
+      );
+      expect(plan.ids, <int>[20, 40, 50]);
+      expect(plan.indice, 1); // 40 es la 2ª no local
+    });
+
+    test('si la pista en curso es local, no hay cola que espejar', () {
+      final HandoffRemoto plan =
+          planHandoffRemoto(<Pista>[_p(-1), _p(20)], 0, 3);
+      expect(plan.hayCola, isFalse);
+    });
+
+    test('cola vacía o índice fuera de rango ⇒ sin cola', () {
+      expect(planHandoffRemoto(<Pista>[], 0, 0).hayCola, isFalse);
+      expect(planHandoffRemoto(<Pista>[_p(10)], 5, 0).hayCola, isFalse);
+      expect(planHandoffRemoto(<Pista>[_p(10)], -1, 0).hayCola, isFalse);
+    });
+
+    test('posición negativa se normaliza a 0', () {
+      expect(planHandoffRemoto(<Pista>[_p(10)], 0, -4).posicionSeg, 0);
+    });
+  });
+
+  group('mapearColaRemota (traer la cola del PC al teléfono)', () {
+    Map<int, Pista> porId(List<int> ids) =>
+        <int, Pista>{for (final int id in ids) id: _p(id)};
+
+    test('todas las ids existen: pistas en orden, mismo índice', () {
+      final ({List<Pista> pistas, int index}) m = mapearColaRemota(
+        <int>[10, 20, 30],
+        1,
+        porId(<int>[10, 20, 30]),
+      );
+      expect(m.pistas.map((Pista p) => p.id), <int>[10, 20, 30]);
+      expect(m.index, 1);
+    });
+
+    test('omite las ids inexistentes y reubica el índice en curso', () {
+      // El PC manda [10, 20, 30, 40]; 20 no está en la biblioteca. Suena 30 (i=2).
+      final ({List<Pista> pistas, int index}) m = mapearColaRemota(
+        <int>[10, 20, 30, 40],
+        2,
+        porId(<int>[10, 30, 40]),
+      );
+      expect(m.pistas.map((Pista p) => p.id), <int>[10, 30, 40]);
+      expect(m.index, 1); // 30 quedó en la posición 1 de la lista filtrada
+    });
+
+    test('si la pista en curso falta, apunta a la siguiente disponible', () {
+      // Suena 20 (i=1) pero 20 no existe; debe caer en 30 (la siguiente).
+      final ({List<Pista> pistas, int index}) m = mapearColaRemota(
+        <int>[10, 20, 30],
+        1,
+        porId(<int>[10, 30]),
+      );
+      expect(m.pistas.map((Pista p) => p.id), <int>[10, 30]);
+      expect(m.index, 1); // posición donde habría caído 20 → ahora 30
+    });
+
+    test('ninguna id existe ⇒ pistas vacío', () {
+      final ({List<Pista> pistas, int index}) m =
+          mapearColaRemota(<int>[10, 20], 0, const <int, Pista>{});
+      expect(m.pistas, isEmpty);
+      expect(m.index, 0);
+    });
+
+    test('índice fuera de rango se acota a la última', () {
+      final ({List<Pista> pistas, int index}) m = mapearColaRemota(
+        <int>[10, 20],
+        9,
+        porId(<int>[10, 20]),
+      );
+      expect(m.index, 1);
+    });
+  });
+
   group('planTraspasoLocal (tomar el control en el teléfono, Connect)', () {
     test('PC conectado y sonando: pausa el PC y traspasa reproduciendo', () {
       final TraspasoLocal p = planTraspasoLocal(

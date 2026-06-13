@@ -662,3 +662,57 @@ Connect). Ahora muestra el estado REAL por dispositivo (verde "Conectado"):
   `VistaSincronizacion.qml`.
 - **Móvil**: `PairingRepository.heartbeat` (ping autenticado) + `Timer.periodic` ~25 s
   en primer plano (`NbSoundApp`). Test: `heartbeat()` va con el device_token.
+
+## Persistencia de cola en Connect + sliders deslizables + diagnóstico de red (2026-06-13)
+
+Tanda de pulido sobre el Connect (analyze limpio, **249 tests** móvil [+12], **14**
+en `test_modelo_sincronizacion` PC [+1]).
+
+### La cola COMPLETA persiste al cambiar de destino (antes solo la pista en curso)
+
+Cambiar "Reproducir en…" perdía la cola: solo viajaba la pista que sonaba. Ahora se
+espeja/trae la cola entera en ambos sentidos, conservando índice y posición.
+
+- **Móvil → PC** (`playback.usarRemoto`): nuevo puro `planHandoffRemoto(cola, index,
+  posSeg)` (filtra música local id<0, reubica el índice contando las no locales, normaliza
+  posición). Manda la cola entera con `establecerCola(ids, indice, posicionSeg:)` (una sola
+  difusión `set_queue`) en vez del antiguo `reproducir_pista` de una pista. Si lo que suena
+  es local (no existe en el PC), solo pausa el móvil.
+- **PC → móvil** (`playback.usarLocal`): captura `remoto.cola` (la cola espejada que el PC
+  ya empuja) e `indiceCola` ANTES de desconectar y llama `PlayerController.reproducirColaRemota`
+  (nuevo). Puro `mapearColaRemota(ids, indice, porId)`: mapea ids del PC a `Pista` de la
+  biblioteca (omite las no sincronizadas), reubica el índice (a la pista en curso o, si falta,
+  la siguiente disponible). Degrada a traer solo la pista en curso (`reproducirIdRemota`) si el
+  PC no publicó cola. Conserva posición y estado (sonando/pausa).
+- **PC (lo commitea el usuario)**: el handler `set_queue` acepta `posicion_seg` opcional →
+  tras `reproducir_cola_desde_pistas` hace `buscar_posicion` (misma semántica best-effort que
+  el handoff de una pista). Contrato (`pc-contract.md` §5.2) y `mobile-ecosystem.md` actualizados.
+- Tests puros nuevos: `planHandoffRemoto` y `mapearColaRemota` (`cola_test.dart`);
+  `set_queue` con/ sin `posicion_seg` (`test_modelo_sincronizacion`).
+
+### Sliders deslizables de verdad en "REPRODUCIENDO EN MI PC"
+
+El scrubber y el volumen del reproductor remoto eran barras con `onChanged: (_) {}`: el
+pulgar no seguía al dedo (volvía a la posición del PC) y solo aplicaban al **tocar** un punto
+o **soltar**. Nuevo `_LiveSlider` (StatefulWidget): el pulgar sigue al dedo (estado local de
+arrastre), aplica **en vivo** mientras se arrastra (acotado: volumen ~90 ms, scrubber ~180 ms),
+ignora el valor del PC mientras se arrastra y, al soltar, mantiene la posición elegida hasta
+que el PC la refleje (tolerancia 4 % + gracia de 2 s) para no "saltar atrás" con un frame
+viejo. `_RemoteScrubber`/`_RemoteVolume` lo usan (el tiempo y el % siguen al dedo en vivo).
+
+### Diagnóstico de red al vincular (caso Chromebook "distinto Wi-Fi")
+
+`PairingRepository._codeFor` englobaba TODO fallo no-401 en `error_red` ("misma red"), que
+**despistaba**: estando en la misma WiFi, un timeout/conexión rechazada suele ser el
+**firewall del PC** o el **aislamiento de clientes** del punto de acceso (redes de
+invitados/malla), no la red. Ahora distingue por `DioExceptionType`: `red_timeout`,
+`red_inalcanzable`, `red_tls` (y `error_red` genérico), con mensajes accionables en
+`sync_screen._ErrorView`. **No** se añadió ningún chequeo de subred (el PC nunca lo exigió);
+el fallo del Chromebook es de entorno (firewall/aislamiento), no de la app.
+
+### Auto-refresco de presencia en la Sincronización del PC (lo commitea el usuario)
+
+La vista no reflejaba al instante quién estaba conectado. `VistaSincronizacion.qml` ahora
+refresca `recargarDispositivos()` al **entrar** (`Component.onCompleted` + `onVisibleChanged`)
+y cada **3 s mientras la vista está visible** (`Timer running: raiz.visible`), además del
+timer global de presencia (~2 s). Actualiza también la "última conexión".
