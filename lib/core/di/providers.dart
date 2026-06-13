@@ -8,6 +8,7 @@ import '../../data/db/daos/downloads_dao.dart';
 import '../../data/db/daos/favorites_dao.dart';
 import '../../data/db/daos/followed_playlists_dao.dart';
 import '../../data/db/daos/history_dao.dart';
+import '../../data/db/daos/local_media_dao.dart';
 import '../../data/db/daos/local_playlists_dao.dart';
 import '../../data/db/daos/sync_state_dao.dart';
 import '../../data/db/database.dart';
@@ -57,6 +58,10 @@ final Provider<SyncStateDao> syncStateDaoProvider = Provider<SyncStateDao>(
 final Provider<LocalPlaylistsDao> localPlaylistsDaoProvider =
     Provider<LocalPlaylistsDao>(
   (Ref ref) => ref.watch(databaseProvider).localPlaylistsDao,
+);
+
+final Provider<LocalMediaDao> localMediaDaoProvider = Provider<LocalMediaDao>(
+  (Ref ref) => ref.watch(databaseProvider).localMediaDao,
 );
 
 final Provider<FollowedPlaylistsDao> followedPlaylistsDaoProvider =

@@ -17,7 +17,7 @@ class MiniPlayer extends StatelessWidget {
     required this.playing,
     required this.progress,
     this.cover,
-    this.coverGradient,
+    this.coverSeed,
     this.onTap,
     this.onToggle,
     this.onPrev,
@@ -32,7 +32,9 @@ class MiniPlayer extends StatelessWidget {
   /// Progreso normalizado 0..1.
   final double progress;
   final ImageProvider? cover;
-  final Gradient? coverGradient;
+
+  /// Semilla estable (id de pista) para variar el respaldo cuando falta carátula.
+  final Object? coverSeed;
   final VoidCallback? onTap;
   final VoidCallback? onToggle;
   final VoidCallback? onPrev;
@@ -91,10 +93,12 @@ class MiniPlayer extends StatelessWidget {
                         children: <Widget>[
                           Cover(
                             image: cover,
-                            gradient: coverGradient,
                             size: 44,
                             radius: 9,
                             shadow: false,
+                            kind: CoverKind.track,
+                            coverSeed: coverSeed,
+                            animatedPlaceholder: true,
                           ),
                           const SizedBox(width: 11),
                           Expanded(

@@ -41,6 +41,7 @@ class MiniPlayerBar extends ConsumerWidget {
               np.coverPath,
               cacheWidth: coverCachePx(context, 44),
             ),
+        coverSeed: np.title,
         playing: np.playing,
         progress: np.progress,
         onTap: () => context.push('/player'),

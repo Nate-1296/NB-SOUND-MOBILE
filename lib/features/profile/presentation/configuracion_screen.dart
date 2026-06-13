@@ -40,6 +40,12 @@ class ConfiguracionScreen extends ConsumerWidget {
               subtitle: 'Cambia el ícono de tu pantalla de inicio',
               onTap: () => context.push('/icono-app'),
             ),
+            _Tile(
+              icon: AppIcons.note,
+              label: 'Música local',
+              subtitle: 'Añade la música guardada en este dispositivo',
+              onTap: () => context.push('/musica-local'),
+            ),
           ],
         ),
       ),

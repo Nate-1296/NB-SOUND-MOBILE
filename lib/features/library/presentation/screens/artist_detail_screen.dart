@@ -6,6 +6,7 @@ import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
+import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/section_head.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/image_resolver.dart';
@@ -52,27 +53,12 @@ class ArtistDetailScreen extends ConsumerWidget {
                 children: <Widget>[
                   SubHeader(title: artista?.nombre ?? 'Artista'),
                   Center(
-                    child: Container(
-                      width: 160,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        color: c.bg3,
-                        shape: BoxShape.circle,
-                        image: img != null
-                            ? DecorationImage(image: img, fit: BoxFit.cover)
-                            : null,
-                        boxShadow: const <BoxShadow>[
-                          BoxShadow(
-                            color: Color(0x66000000),
-                            blurRadius: 24,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: img == null
-                          ? Icon(AppIcons.user, color: c.text3, size: 48)
-                          : null,
+                    child: ArtistAvatar(
+                      image: img,
+                      size: 160,
+                      seed: artista?.id ?? artistId,
+                      shadow: true,
+                      animated: true,
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -344,6 +344,8 @@ class _AgregarPistasSheetState extends ConsumerState<_AgregarPistasSheet> {
                             size: 44,
                             radius: 8,
                             shadow: false,
+                            kind: CoverKind.track,
+                            coverSeed: p.id,
                           ),
                           title: Text(
                             p.titulo,

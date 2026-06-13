@@ -504,3 +504,74 @@ encuentra por **referencias cruzadas** (`library_filters.dart`):
 Núcleo puro y testeado `puntuarCampos(q, campos)`: máximo ponderado entre los
 campos (directo ×1.0, cruzados ×0.9/×0.85, así el match directo ordena primero).
 Los índices cruzados se recalculan solo al cambiar el catálogo. 174 tests.
+
+### Placeholders de carátula/foto faltante por tipo (2026-06-13)
+
+Antes, una pista/álbum sin carátula quedaba como un cuadrado gris plano (`Cover`
+con `image:null`), el artista como círculo con icono de persona y la playlist con
+un icono de nota suelto. Ahora **cualquier** contenido sin imagen muestra un
+respaldo tipado y reconocible en **todas** las vistas (inicio, buscar, biblioteca,
+playlists, detalles, reproductor, mini-reproductor, cola, diálogos).
+
+Piezas (`shared/widgets/`):
+- **`cover_placeholder.dart`** (núcleo): `enum CoverKind {album, artist, track,
+  playlist}`; `iconForCoverKind` (disco / persona / nota / lista); función pura
+  **`coverPlaceholderGradient(c, seed)`** — degradado de marca **determinista por
+  semilla** (id/título) que se deriva de los colores del tema activo (armónico con
+  los 63 temas, sin colores que choquen) para que los respaldos no se vean
+  idénticos; `CoverPlaceholder` (estático o animado); `Breathing` (respiración
+  con un único `AnimationController`); `EqualizerBars` (barras de ecualizador
+  animadas para pistas); y el sealed **`CoverTile`** (`CoverImageTile` /
+  `CoverFallbackTile`) para mosaicos mixtos.
+- **`cover.dart`**: `Cover` gana `kind`/`coverSeed`/`animatedPlaceholder` (pinta el
+  placeholder tipado cuando no hay imagen ni gradiente explícito); `CoverMosaic`
+  pasa a recibir `List<CoverTile>` (celdas imagen o respaldo); nuevo **`ArtistAvatar`**
+  (círculo imagen-o-respaldo) que unifica los círculos de artista (carruseles,
+  filas, héroes).
+- **`features/library/.../playlist_art.dart`** + `playlist_covers.dart::
+  slotsPortadaPlaylist` (puro, testeado): compone la portada de una playlist
+  reflejando las pistas **sin carátula** como respaldos dentro del mosaico ("si no
+  hay carátula en una o varias, queda como si fuera esa la portada"); si **ninguna**
+  pista aporta carátula → un único placeholder de playlist. `PlaylistArt` centraliza
+  la decisión mosaico/única/placeholder + prefetch a disco (DRY: antes la duplicaban
+  tarjetas, filas, los dos detalles y el inicio).
+
+**Decisión de rendimiento (clave):** el placeholder es **estático por defecto**
+(cero `AnimationController`) en listas, rejillas y mosaicos — donde pueden aparecer
+muchos a la vez — y solo **animado** en placeholders **únicos** visibles: portada
+del reproductor y mini-reproductor (barras de ecualizador) y héroes de detalle
+álbum/artista/playlist (respiración). Sin assets externos (sin Lottie → sin inflar
+el APK ni riesgo de jank). Así "la animación solo si no se vuelve pesado".
+
+Excepciones deliberadas (no son cuadrados grises, son afford­ances): el icono cast
+del `remote_player_view` (señala "suena en tu PC") y el icono de nota del selector
+"añadir a playlist" (acción rápida; renderizar el mosaico por fila exigiría
+consultar las pistas de cada playlist en una hoja transitoria). Tests nuevos:
+`slotsPortadaPlaylist` (6 casos) + `cover_placeholder_test` (icono/gradiente).
+
+### Música local del teléfono + Hotkeys (2026-06-13)
+
+**Música local ("dos bibliotecas en una").** Detalle de datos en
+`docs/local-data.md` §Música local. Resumen de feature:
+- Detecta la música del teléfono vía **MediaStore** (MethodChannel nativo
+  `com.nbsound/local_media` en `MainActivity.kt`; `permission_handler` para el
+  permiso). No pide carpeta; ignora notas de voz/audios de apps (`IS_MUSIC` +
+  duración ≥30 s). Se integra en las **mismas tablas** del catálogo con
+  `origen='local'` e **ids negativos** → fluye por toda la UI; el sync (ids del
+  PC) nunca la toca y `id<0` la aísla del Connect.
+- **Carátula embebida** lazy (`localart://` + `LocalArtworkImage`), placeholder
+  tipado entretanto.
+- **Dedupe** contra lo sincronizado (la del PC prima): título+artista+álbum
+  normalizados + duración ±10 s; remapea playlists/favoritos a la del PC.
+- **Aislamiento Connect**: historial/favoritos no suben ids locales; handoff,
+  enrutado remoto y menú de pista excluyen `id<0`.
+- **Pantalla de gestión** `/musica-local` (en Configuración): revisar manual o
+  automático, ocultar por pista / ocultar todas (sin borrar del teléfono) +
+  revelar, y **buscador difuso**.
+
+**Hotkeys de teclado** (`lib/app/player_hotkeys.dart`, en el `builder` de
+`MaterialApp.router`): Espacio/Play-Pause = play/pausa; →/← = ±10 s; Ctrl+→/← y
+Anterior/Siguiente = pista; enrutan por `PlaybackActions` (local o PC según
+destino). Captura Espacio en cualquier vista → arregla el "marco verde" inútil
+del Chromebook; los campos de texto consumen sus teclas antes (no disparan los
+atajos al escribir). `PlaybackActions.seekRelativo` nuevo.

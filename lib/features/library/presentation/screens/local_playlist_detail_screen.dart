@@ -13,9 +13,9 @@ import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
-import '../../application/playlist_covers.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
+import '../widgets/playlist_art.dart';
 import '../widgets/playlist_dialogs.dart';
 
 /// Rojo de acción destructiva (convencional, independiente del tema).
@@ -39,13 +39,6 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
     final CoverResolver resolver = ref.watch(coverResolverProvider);
     final double total =
         pistas.fold<double>(0, (double a, Pista p) => a + p.duracionSeg);
-    final int coversPx = coverCachePx(context, 200);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: coversPx)
-            case final ImageProvider img)
-          img,
-    ];
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -94,19 +87,12 @@ class LocalPlaylistDetailScreen extends ConsumerWidget {
                 children: <Widget>[
                   const SizedBox(height: 8),
                   Center(
-                    child: covers.length >= 4
-                        ? CoverMosaic(images: covers, size: 200, radius: 18)
-                        : Cover(
-                            image: covers.isNotEmpty ? covers.first : null,
-                            size: 200,
-                            radius: 18,
-                            overlay: covers.isEmpty
-                                ? Center(
-                                    child: Icon(AppIcons.note,
-                                        color: c.text3, size: 44),
-                                  )
-                                : null,
-                          ),
+                    child: PlaylistArt(
+                      pistas: pistas,
+                      size: 200,
+                      radius: 18,
+                      seed: playlistId,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Padding(
@@ -395,6 +381,8 @@ class _TrackRow extends StatelessWidget {
         size: 44,
         radius: 8,
         shadow: false,
+        kind: CoverKind.track,
+        coverSeed: pista.id,
       ),
       title: Text(
         pista.titulo,

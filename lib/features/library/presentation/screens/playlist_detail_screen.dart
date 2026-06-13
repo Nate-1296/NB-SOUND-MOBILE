@@ -8,16 +8,14 @@ import '../../../../shared/theme/nb_colors.dart';
 import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/util/responsive.dart';
 import '../../../../shared/widgets/app_icons.dart';
-import '../../../../shared/widgets/cover.dart';
 import '../../../../shared/widgets/sub_header.dart';
 import '../../../offline/application/download_providers.dart';
-import '../../../offline/application/image_resolver.dart';
 import '../../../offline/presentation/download_actions.dart';
 import '../../../player/application/playback.dart';
 import '../../application/library_providers.dart';
-import '../../application/playlist_covers.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/pista_list.dart';
+import '../widgets/playlist_art.dart';
 
 /// Detalle de playlist: mosaico, metadatos y pistas en orden.
 class PlaylistDetailScreen extends ConsumerWidget {
@@ -35,13 +33,6 @@ class PlaylistDetailScreen extends ConsumerWidget {
             const <Pista>[];
     final double total =
         pistas.fold<double>(0, (double a, Pista p) => a + p.duracionSeg);
-    final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 200);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
-          img,
-    ];
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -63,19 +54,12 @@ class PlaylistDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   Center(
-                    child: covers.length >= 4
-                        ? CoverMosaic(images: covers, size: 200, radius: 18)
-                        : Cover(
-                            image: covers.isNotEmpty ? covers.first : null,
-                            size: 200,
-                            radius: 18,
-                            overlay: covers.isEmpty
-                                ? Center(
-                                    child: Icon(AppIcons.note,
-                                        color: c.text3, size: 44),
-                                  )
-                                : null,
-                          ),
+                    child: PlaylistArt(
+                      pistas: pistas,
+                      size: 200,
+                      radius: 18,
+                      seed: playlistId,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Padding(

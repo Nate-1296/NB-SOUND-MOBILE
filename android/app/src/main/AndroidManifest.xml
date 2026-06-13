@@ -12,6 +12,12 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
+    <!-- Música local del teléfono (MediaStore). Android 13+ usa READ_MEDIA_AUDIO;
+         Android 12 y anteriores, READ_EXTERNAL_STORAGE (solo lectura). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+
     <application
         android:label="NB Sound"
         android:name="${applicationName}"

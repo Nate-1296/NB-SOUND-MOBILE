@@ -51,6 +51,14 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
   /// Clave del ícono de app activo (uno de los 63 temas, o `''` por defecto).
   static const String kIconoApp = 'icono_app';
 
+  /// Música local: `'1'` oculta TODA la música local de la app (sigue en el
+  /// teléfono, pero no se indexa ni aparece). Por defecto `'0'`.
+  static const String kMusicaLocalOculta = 'musica_local_oculta';
+
+  /// Música local: `'1'` (por defecto) revisa el dispositivo automáticamente
+  /// (al arrancar y en cada resync); `'0'` solo manual (botón "Revisar").
+  static const String kMusicaLocalAuto = 'musica_local_auto';
+
   /// Modos de visualización persistidos de la biblioteca/playlists
   /// (`lista`/`grid_pequena`/`grid_mediana`), uno por sección.
   static const String kVistaAlbumes = 'vista_albumes';

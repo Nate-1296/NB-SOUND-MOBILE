@@ -9,6 +9,7 @@ import '../../../../shared/theme/nb_theme.dart';
 import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/sheet.dart';
 import '../../../../shared/widgets/track_row.dart';
+import '../../../local_media/application/local_ids.dart';
 import '../../../offline/application/download_providers.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../../offline/presentation/download_actions.dart';
@@ -63,6 +64,7 @@ Widget pistaRow(
         ? deps.resolver
             .imageFor(p.coverPath, cacheWidth: coverCachePx(context, 48))
         : null,
+    coverSeed: p.id,
     durationSeconds: p.duracionSeg,
     index: numbered ? i + 1 : null,
     showCover: showCover,
@@ -223,8 +225,12 @@ Future<void> mostrarMenuPista(
       .contains(pista.id);
   final bool descargada = (ref.read(descargadasProvider).value ?? const <int>{})
       .contains(pista.id);
+  // Música local del teléfono: no se descarga (ya está en el dispositivo) ni se
+  // manda al PC (jamás se relaciona con el Connect).
+  final bool local = esIdLocal(pista.id);
   final bool enPc = ref.read(playbackTargetProvider) == PlaybackTarget.remote &&
-      ref.read(remoteControllerProvider).conectado;
+      ref.read(remoteControllerProvider).conectado &&
+      !local;
   return mostrarHojaMenu<void>(
     context,
     builder: (BuildContext sheetContext) {
@@ -366,32 +372,35 @@ Future<void> mostrarMenuPista(
                   context.push('/artist/${pista.artistaId}');
                 },
               ),
-            ListTile(
-              leading: Icon(
-                descargada ? AppIcons.downloadDone : AppIcons.download,
-                color: descargada ? c.accent : c.text,
-              ),
-              title: Text(
-                descargada ? 'Quitar descarga' : 'Descargar',
-                style: TextStyle(
-                  fontFamily: NbFonts.ui,
-                  fontWeight: FontWeight.w600,
-                  color: c.text,
+            // La descarga es bajar la pista del PC para tenerla offline; una
+            // pista local ya vive en el dispositivo, así que no se ofrece.
+            if (!local)
+              ListTile(
+                leading: Icon(
+                  descargada ? AppIcons.downloadDone : AppIcons.download,
+                  color: descargada ? c.accent : c.text,
                 ),
+                title: Text(
+                  descargada ? 'Quitar descarga' : 'Descargar',
+                  style: TextStyle(
+                    fontFamily: NbFonts.ui,
+                    fontWeight: FontWeight.w600,
+                    color: c.text,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  final DownloadQueueController q =
+                      ref.read(downloadQueueProvider.notifier);
+                  if (descargada) {
+                    q.eliminar(pista.id);
+                  } else {
+                    // Avisa si no hay PC emparejado / sin conexión, en vez de
+                    // encolar en silencio algo que no se descargará.
+                    encolarConAviso(context, ref, () => q.encolarPista(pista.id));
+                  }
+                },
               ),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                final DownloadQueueController q =
-                    ref.read(downloadQueueProvider.notifier);
-                if (descargada) {
-                  q.eliminar(pista.id);
-                } else {
-                  // Avisa si no hay PC emparejado / sin conexión, en vez de
-                  // encolar en silencio algo que no se descargará.
-                  encolarConAviso(context, ref, () => q.encolarPista(pista.id));
-                }
-              },
-            ),
             if (enPc) ...<Widget>[
               ListTile(
                 leading: Icon(AppIcons.cast, color: c.accent),

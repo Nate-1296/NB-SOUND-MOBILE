@@ -9,8 +9,7 @@ import '../../../../shared/widgets/app_icons.dart';
 import '../../../../shared/widgets/cover.dart';
 import '../../../offline/application/image_resolver.dart';
 import '../../application/library_providers.dart';
-import '../../application/playlist_cover_prefetch.dart';
-import '../../application/playlist_covers.dart';
+import 'playlist_art.dart';
 
 /// Tarjeta de álbum (portada + título + año). La portada llena el ancho
 /// disponible (cuadrada), válido tanto en rejilla como en carrusel.
@@ -43,6 +42,8 @@ class AlbumCard extends ConsumerWidget {
                   ),
               size: double.infinity,
               radius: 14,
+              kind: CoverKind.album,
+              coverSeed: album.id,
             ),
           ),
           const SizedBox(height: 8),
@@ -93,6 +94,8 @@ class AlbumTile extends ConsumerWidget {
         size: 52,
         radius: 8,
         shadow: false,
+        kind: CoverKind.album,
+        coverSeed: album.id,
       ),
       title: Text(
         album.titulo,
@@ -130,6 +133,8 @@ class _CoverGridCell extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.circular = false,
+    this.kind = CoverKind.album,
+    this.seed,
   });
 
   final ImageProvider? cover;
@@ -138,24 +143,22 @@ class _CoverGridCell extends StatelessWidget {
   final VoidCallback onTap;
   final bool circular;
 
+  /// Tipo del contenido (para el respaldo tipado del cuadrado no circular).
+  final CoverKind kind;
+  final Object? seed;
+
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
     final Widget media = circular
-        ? Container(
-            decoration: BoxDecoration(
-              color: c.bg3,
-              shape: BoxShape.circle,
-              image: cover != null
-                  ? DecorationImage(image: cover!, fit: BoxFit.cover)
-                  : null,
-            ),
-            alignment: Alignment.center,
-            child: cover == null
-                ? Icon(AppIcons.user, color: c.text3, size: 30)
-                : null,
-          )
-        : Cover(image: cover, size: double.infinity, radius: 14);
+        ? ArtistAvatar(image: cover, seed: seed)
+        : Cover(
+            image: cover,
+            size: double.infinity,
+            radius: 14,
+            kind: kind,
+            coverSeed: seed,
+          );
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -208,6 +211,8 @@ class AlbumGridCell extends ConsumerWidget {
             ),
         title: album.titulo,
         subtitle: album.anio == null ? null : '${album.anio}',
+        kind: CoverKind.album,
+        seed: album.id,
         onTap: () => context.push('/album/${album.id}'),
       );
 }
@@ -225,6 +230,8 @@ class ArtistGridCell extends ConsumerWidget {
               cacheWidth: coverCachePx(context, 160),
             ),
         title: artista.nombre,
+        kind: CoverKind.artist,
+        seed: artista.id,
         onTap: () => context.push('/artist/${artista.id}'),
       );
 }
@@ -244,6 +251,8 @@ class TrackGridCell extends ConsumerWidget {
             ),
         title: pista.titulo,
         subtitle: pista.artistaNombre,
+        kind: CoverKind.track,
+        seed: pista.id,
         onTap: onTap,
       );
 }
@@ -279,27 +288,11 @@ class ArtistCircle extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: c.bg3,
-                shape: BoxShape.circle,
-                image: img != null
-                    ? DecorationImage(image: img, fit: BoxFit.cover)
-                    : null,
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    color: Color(0x55000000),
-                    blurRadius: 16,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: img == null
-                  ? Icon(AppIcons.user, color: c.text3, size: size * 0.4)
-                  : null,
+            ArtistAvatar(
+              image: img,
+              size: size,
+              seed: artista.id,
+              shadow: true,
             ),
             const SizedBox(height: 8),
             Text(
@@ -341,19 +334,7 @@ class ArtistTile extends ConsumerWidget {
         onOpen?.call();
         context.push('/artist/${artista.id}');
       },
-      leading: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: c.bg3,
-          shape: BoxShape.circle,
-          image: img != null
-              ? DecorationImage(image: img, fit: BoxFit.cover)
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: img == null ? Icon(AppIcons.user, color: c.text3) : null,
-      ),
+      leading: ArtistAvatar(image: img, size: 52, seed: artista.id),
       title: Text(
         artista.nombre,
         style: TextStyle(
@@ -375,8 +356,9 @@ class _PlaylistCardBase extends StatelessWidget {
   const _PlaylistCardBase({
     required this.nombre,
     required this.subtitulo,
-    required this.covers,
+    required this.pistas,
     required this.ruta,
+    this.seed,
     this.onLongPress,
     this.onOpen,
     this.pinned = false,
@@ -384,8 +366,9 @@ class _PlaylistCardBase extends StatelessWidget {
 
   final String nombre;
   final String subtitulo;
-  final List<ImageProvider> covers;
+  final List<Pista> pistas;
   final String ruta;
+  final Object? seed;
   final VoidCallback? onLongPress;
   final VoidCallback? onOpen;
   final bool pinned;
@@ -411,20 +394,13 @@ class _PlaylistCardBase extends StatelessWidget {
               child: Stack(
                 children: <Widget>[
                   Positioned.fill(
-                    child: covers.length >= 4
-                        ? CoverMosaic(
-                            images: covers, size: double.infinity, radius: 14)
-                        : Cover(
-                            image: covers.isNotEmpty ? covers.first : null,
-                            size: double.infinity,
-                            radius: 14,
-                            overlay: covers.isEmpty
-                                ? Center(
-                                    child: Icon(AppIcons.note,
-                                        color: c.text3, size: 34),
-                                  )
-                                : null,
-                          ),
+                    child: PlaylistArt(
+                      pistas: pistas,
+                      size: double.infinity,
+                      radius: 14,
+                      seed: seed,
+                      cacheSize: 110,
+                    ),
                   ),
                   if (pinned)
                     Positioned(
@@ -493,21 +469,11 @@ class PlaylistCard extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistProvider(playlist.id)).value ??
             const <Pista>[];
-    final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 110);
-    // Solo se resuelven las portadas distintas (≤4): evita decodificar todas las
-    // pistas y que el mosaico repita la misma carátula. Además se materializan a
-    // disco (prefetch) para que en la próxima apertura salgan instantáneas.
-    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
-          img,
-    ];
     return _PlaylistCardBase(
       nombre: playlist.nombre,
       subtitulo: '${pistas.length} pistas',
-      covers: covers,
+      pistas: pistas,
+      seed: playlist.id,
       ruta: '/playlist/${playlist.id}',
       onLongPress: onLongPress,
       onOpen: onOpen,
@@ -534,18 +500,11 @@ class LocalPlaylistCard extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistLocalProvider(playlist.id)).value ??
             const <Pista>[];
-    final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 110);
-    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
-          img,
-    ];
     return _PlaylistCardBase(
       nombre: playlist.nombre,
       subtitulo: '${pistas.length} pistas',
-      covers: covers,
+      pistas: pistas,
+      seed: playlist.id,
       ruta: '/playlist-local/${playlist.id}',
       onLongPress: onLongPress,
       pinned: pinned,
@@ -559,37 +518,34 @@ class _PlaylistTileBase extends StatelessWidget {
   const _PlaylistTileBase({
     required this.nombre,
     required this.subtitulo,
-    required this.covers,
+    required this.pistas,
     required this.ruta,
+    this.seed,
     this.onLongPress,
     this.pinned = false,
   });
 
   final String nombre;
   final String subtitulo;
-  final List<ImageProvider> covers;
+  final List<Pista> pistas;
   final String ruta;
+  final Object? seed;
   final VoidCallback? onLongPress;
   final bool pinned;
 
   @override
   Widget build(BuildContext context) {
     final NbColors c = context.nb;
-    final Widget thumb = covers.length >= 4
-        ? CoverMosaic(images: covers, size: 52, radius: 10)
-        : Cover(
-            image: covers.isNotEmpty ? covers.first : null,
-            size: 52,
-            radius: 10,
-            shadow: false,
-            overlay: covers.isEmpty
-                ? Center(child: Icon(AppIcons.note, color: c.text3, size: 22))
-                : null,
-          );
     return ListTile(
       onTap: () => context.push(ruta),
       onLongPress: onLongPress,
-      leading: thumb,
+      leading: PlaylistArt(
+        pistas: pistas,
+        size: 52,
+        radius: 10,
+        shadow: false,
+        seed: seed,
+      ),
       title: Text(
         nombre,
         maxLines: 1,
@@ -634,18 +590,11 @@ class PlaylistTile extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistProvider(playlist.id)).value ??
             const <Pista>[];
-    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
-    final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 52);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
-          img,
-    ];
     return _PlaylistTileBase(
       nombre: playlist.nombre,
       subtitulo: '${pistas.length} pistas',
-      covers: covers,
+      pistas: pistas,
+      seed: playlist.id,
       ruta: '/playlist/${playlist.id}',
       onLongPress: onLongPress,
       pinned: pinned,
@@ -671,18 +620,11 @@ class LocalPlaylistTile extends ConsumerWidget {
     final List<Pista> pistas =
         ref.watch(pistasDePlaylistLocalProvider(playlist.id)).value ??
             const <Pista>[];
-    ref.read(playlistCoverPrefetcherProvider).asegurarParaPistas(pistas);
-    final CoverResolver resolver = ref.watch(coverResolverProvider);
-    final int px = coverCachePx(context, 52);
-    final List<ImageProvider> covers = <ImageProvider>[
-      for (final String path in portadasDistintas(pistas))
-        if (resolver.imageFor(path, cacheWidth: px) case final ImageProvider img)
-          img,
-    ];
     return _PlaylistTileBase(
       nombre: playlist.nombre,
       subtitulo: '${pistas.length} pistas',
-      covers: covers,
+      pistas: pistas,
+      seed: playlist.id,
       ruta: '/playlist-local/${playlist.id}',
       onLongPress: onLongPress,
       pinned: pinned,

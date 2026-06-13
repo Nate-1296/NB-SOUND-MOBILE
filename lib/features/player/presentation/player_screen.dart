@@ -355,7 +355,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           onVerticalDragUpdate: _onVDragUpdate,
           onVerticalDragEnd: _onVDragEnd,
           child: Center(
-            child: Cover(image: cover, size: lado, radius: 22),
+            child: Cover(
+              image: cover,
+              size: lado,
+              radius: 22,
+              kind: CoverKind.track,
+              coverSeed: pista.id,
+              animatedPlaceholder: true,
+            ),
           ),
         );
       case _View.letra:
@@ -918,6 +925,8 @@ class _Cola extends ConsumerWidget {
         size: 40,
         radius: 8,
         shadow: false,
+        kind: CoverKind.track,
+        coverSeed: pista.id,
       ),
       title: Text(
         pista.titulo,

@@ -107,9 +107,11 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
         });
   }
 
-  /// Entradas aún no subidas al PC (para la tanda de sync).
-  Future<List<HistorialEntry>> noSubidos() =>
-      (select(historialLocal)..where((t) => t.subido.equals(false))).get();
+  /// Entradas aún no subidas al PC (para la tanda de sync). Excluye ids
+  /// negativos (música local del teléfono): jamás se relaciona con el PC/Connect.
+  Future<List<HistorialEntry>> noSubidos() => (select(historialLocal)
+        ..where((t) => t.subido.equals(false) & t.pistaId.isBiggerThanValue(0)))
+      .get();
 
   Future<void> marcarSubidos(List<int> ids) =>
       (update(historialLocal)..where((t) => t.id.isIn(ids)))

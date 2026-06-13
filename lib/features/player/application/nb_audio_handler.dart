@@ -264,6 +264,11 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     if (path != null && path.startsWith('http')) {
       return AudioSource.uri(Uri.parse(path), tag: tag);
     }
+    // Música local del teléfono: content-URI de MediaStore (reproducible por
+    // just_audio en Android). Nunca pasa por el PC/Connect (id < 0).
+    if (path != null && path.startsWith('content://')) {
+      return AudioSource.uri(Uri.parse(path), tag: tag);
+    }
     if (path == null || path.startsWith('/api/')) {
       // Sincronizada del PC: streaming con auth. Sin ruta explícita se deriva
       // del id. Sin PC no es reproducible; se devuelve la URI relativa para que

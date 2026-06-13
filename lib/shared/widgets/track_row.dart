@@ -14,7 +14,7 @@ class TrackRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.cover,
-    this.coverGradient,
+    this.coverSeed,
     this.durationSeconds,
     this.index,
     this.showCover = true,
@@ -31,7 +31,9 @@ class TrackRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final ImageProvider? cover;
-  final Gradient? coverGradient;
+
+  /// Semilla estable (id de pista) para variar el respaldo cuando falta carátula.
+  final Object? coverSeed;
   final num? durationSeconds;
 
   /// Número de pista, mostrado cuando [showCover] es false.
@@ -82,10 +84,11 @@ class TrackRow extends StatelessWidget {
             if (showCover) ...<Widget>[
               Cover(
                 image: cover,
-                gradient: coverGradient,
                 size: compact ? 42 : 48,
                 radius: 9,
                 shadow: false,
+                kind: CoverKind.track,
+                coverSeed: coverSeed ?? title,
               ),
             ],
             const SizedBox(width: 12),

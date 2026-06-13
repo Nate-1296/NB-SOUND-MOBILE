@@ -7,7 +7,8 @@ import 'package:drift/drift.dart';
 // en cada sync. Datos propios del móvil (fuente de verdad local): historial,
 // favoritos, descargas. Estado: sync_estado, pc_emparejado.
 
-/// Artistas (réplica del PC).
+/// Artistas (espejo del PC `origen='pc'`, o música local del teléfono
+/// `origen='local'` con id negativo).
 @DataClassName('Artista')
 class Artistas extends Table {
   IntColumn get id => integer()();
@@ -18,11 +19,15 @@ class Artistas extends Table {
   TextColumn get imagenPath => text().nullable()();
   IntColumn get syncVersion => integer().withDefault(const Constant(0))();
 
+  /// `pc` (espejo sincronizado) | `local` (música del teléfono). El sync solo
+  /// toca filas `pc`; las `local` (id < 0) son invisibles al PC/Connect.
+  TextColumn get origen => text().withDefault(const Constant('pc'))();
+
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{id};
 }
 
-/// Álbumes (réplica del PC).
+/// Álbumes (espejo del PC `origen='pc'`, o local `origen='local'` con id < 0).
 @DataClassName('Album')
 class Albums extends Table {
   IntColumn get id => integer()();
@@ -32,6 +37,9 @@ class Albums extends Table {
   IntColumn get anio => integer().nullable()();
   TextColumn get coverPath => text().nullable()();
   IntColumn get syncVersion => integer().withDefault(const Constant(0))();
+
+  /// `pc` | `local`. Ver [Artistas.origen].
+  TextColumn get origen => text().withDefault(const Constant('pc'))();
 
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{id};
@@ -62,12 +70,18 @@ class Pistas extends Table {
   /// Tonalidad musical (`key` en el manifest; renombrado para evitar choques).
   TextColumn get keyMusical => text().nullable()();
 
-  /// Rutas locales (asset/file) cuando se han descargado.
+  /// Rutas locales (asset/file) cuando se han descargado. En música local,
+  /// `audioPath` es la content-URI de MediaStore (`content://…`) y `coverPath`
+  /// el esquema `localart://<mediaStoreId>` (ver local_ids.dart).
   TextColumn get coverPath => text().nullable()();
   TextColumn get lyricsPath => text().nullable()();
   TextColumn get audioPath => text().nullable()();
 
   IntColumn get syncVersion => integer().withDefault(const Constant(0))();
+
+  /// `pc` (espejo sincronizado) | `local` (música del teléfono, id < 0). El sync
+  /// solo toca filas `pc`; las locales jamás se relacionan con el PC/Connect.
+  TextColumn get origen => text().withDefault(const Constant('pc'))();
 
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{id};
@@ -209,6 +223,23 @@ class AssetsDescargados extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{tipo, refId};
+}
+
+/// Pistas de **música local** que el usuario decidió **ocultar** (quitar de la
+/// app sin borrarlas del teléfono). Se identifican por su id de MediaStore; el
+/// escaneo las salta, así no se re-añaden. Guardamos título/artista para poder
+/// listarlas en "Ocultas" y permitir revelarlas. No confundir con el flag global
+/// "ocultar toda la música local" (clave kv en [SyncEstado]).
+@DataClassName('LocalOcultaRow')
+class LocalMediaOcultas extends Table {
+  /// `_ID` de MediaStore (positivo).
+  IntColumn get mediaId => integer()();
+  TextColumn get titulo => text()();
+  TextColumn get artista => text().nullable()();
+  DateTimeColumn get ocultadoEn => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => <Column<Object>>{mediaId};
 }
 
 /// Pares clave/valor de estado de sync (p.ej. ultima_sync_version).

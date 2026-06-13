@@ -8,12 +8,14 @@ import '../core/network/pinned_http_overrides.dart';
 import '../core/router/app_router.dart';
 import '../features/equalizer/application/equalizer_controller.dart';
 import '../features/library/application/playlist_cover_prefetch.dart';
+import '../features/local_media/application/local_media_providers.dart';
 import '../features/player/application/player_controller.dart';
 import '../features/sync/application/remote_media_provider.dart';
 import '../features/sync/application/sync_controller.dart';
 import '../shared/theme/nb_theme.dart';
 import '../shared/theme/theme_controller.dart';
 import '../shared/util/media_source.dart';
+import 'player_hotkeys.dart';
 
 /// Widget raíz: aplica el tema activo, monta el router declarativo y orquesta el
 /// **auto-sync** para que todo esté en vivo sin intervención: sincroniza al
@@ -46,12 +48,20 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
     // para que la pestaña Playlists y los accesos rápidos del Inicio salgan
     // instantáneos la primera vez en vez de cargarse al abrirlos.
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefetchPortadas());
+    // Refresca la música local del teléfono al arrancar (incremental y no
+    // bloqueante): instanciar el controlador dispara su escaneo si ya hay
+    // permiso. La primera vez (sin permiso) no hace nada hasta que el usuario lo
+    // concede desde Ajustes › Música local.
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => ref.read(localMediaControllerProvider.notifier));
     _lifecycle = AppLifecycleListener(
       onStateChange: (AppLifecycleState estado) {
         final bool resumed = estado == AppLifecycleState.resumed;
-        // Al volver a primer plano: sincroniza para reflejar cambios del PC.
+        // Al volver a primer plano: sincroniza para reflejar cambios del PC y
+        // revisa la música local nueva del teléfono (si la auto-revisión está on).
         if (resumed && !_enPrimerPlano) {
           _sincronizar();
+          ref.read(localMediaControllerProvider.notifier).revisarSiAuto();
         }
         // Al ir a segundo plano: persiste la sesión del reproductor con la
         // posición real, para restaurarla al reabrir (como Spotify).
@@ -108,8 +118,14 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
 
     // Reintenta el prefetch de portadas cuando el sync establece el PC (p. ej. el
     // primer emparejamiento o una sincronización con éxito tras arrancar sin PC).
+    // Y, tras cada sync con éxito, deduplica la música local contra lo
+    // sincronizado (la del PC prima): es el momento en que pueden aparecer
+    // nuevas pistas del PC que dupliquen alguna local.
     ref.listen(syncControllerProvider.select((SyncState s) => s.lastSync),
-        (_, _) => _prefetchPortadas());
+        (_, _) {
+      _prefetchPortadas();
+      ref.read(localMediaServiceProvider).deduplicar();
+    });
 
     // Mantiene la huella TLS global sincronizada con el PC emparejado, para que
     // el pinning de NetworkImage/just_audio (HttpOverrides) use el cert correcto.
@@ -121,6 +137,10 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
       debugShowCheckedModeBanner: false,
       theme: NbTheme.build(themeKey),
       routerConfig: router,
+      // Atajos de teclado del reproductor (Chromebook/tablets/teléfonos con
+      // teclado), por encima del Navigator para capturarlos en cualquier vista.
+      builder: (BuildContext context, Widget? child) =>
+          PlayerHotkeys(child: child ?? const SizedBox.shrink()),
     );
   }
 }

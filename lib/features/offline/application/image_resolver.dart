@@ -6,6 +6,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/util/media_source.dart';
+import '../../local_media/application/local_ids.dart';
+import '../../local_media/data/local_artwork_image.dart';
 import '../../sync/application/remote_media_provider.dart';
 import '../data/cover_cache.dart';
 import '../data/offline_store.dart';
@@ -77,6 +79,12 @@ class CoverResolver {
     }
     if (path.startsWith('/api/')) {
       return _remoteOrNull(path);
+    }
+    // Carátula embebida de música local del teléfono (`localart://<mediaId>`),
+    // servida por el canal nativo. Solo se fija cuando ya se confirmó que existe.
+    final int? localId = mediaStoreIdDeCover(path);
+    if (localId != null) {
+      return LocalArtworkImage(localId);
     }
     // Ruta de archivo local explícita.
     return FileImage(File(path));

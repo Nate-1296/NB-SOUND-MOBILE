@@ -84,4 +84,15 @@ abstract final class AppIcons {
   // Pantalla completa (modo letra inmersivo).
   static const IconData fullscreen = Icons.fullscreen_rounded;
   static const IconData fullscreenExit = Icons.fullscreen_exit_rounded;
+
+  // Respaldos de portada/foto faltante, distintos por tipo (los usa
+  // CoverPlaceholder/ArtistAvatar cuando no hay imagen).
+  static const IconData albumFallback = Icons.album_rounded;
+  static const IconData artistFallback = Icons.person_rounded;
+  static const IconData trackFallback = Icons.music_note_rounded;
+  static const IconData playlistFallback = Icons.queue_music_rounded;
+
+  // Visibilidad (ocultar/mostrar música local).
+  static const IconData hide = Icons.visibility_off_outlined;
+  static const IconData show = Icons.visibility_outlined;
 }

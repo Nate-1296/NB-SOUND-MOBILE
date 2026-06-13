@@ -39,6 +39,44 @@ playlist_pistas (playlist_id, pista_id, posicion)
 > audio) cuando se han descargado; si no, se resuelven por streaming desde el
 > PC. `id` conserva el id del PC para correlacionar en cada sync.
 
+### Música local del teléfono ("dos bibliotecas en una")
+
+`pistas`/`albums`/`artistas` ganan una columna **`origen`** (`pc` | `local`,
+schema v6). La música local del propio teléfono (escaneada de **MediaStore**)
+vive en **estas mismas tablas** —para fluir por toda la UI (biblioteca, buscar,
+playlists locales, favoritos, cola, reproductor)— pero con **`origen='local'`** e
+**ids negativos**. El espejo del PC usa ids **positivos**; como el sync es
+**delta + tombstones por ids del PC**, jamás toca las filas locales. El signo del
+id (`id < 0`) es además la guarda de **aislamiento del Connect**.
+
+- **Origen de datos**: `MethodChannel` nativo `com.nbsound/local_media`
+  (`MainActivity.kt`) consulta MediaStore (`IS_MUSIC` + duración ≥ 30 s → ignora
+  notas de voz/sonidos de apps); permiso `READ_MEDIA_AUDIO` (Android 13+) /
+  `READ_EXTERNAL_STORAGE` (≤12) vía `permission_handler`. No pide carpeta.
+- **Reproducción**: `audioPath` = content-URI de MediaStore; just_audio la
+  reproduce (`AudioSource.uri`).
+- **Carátula embebida**: tras el escaneo, un pase en segundo plano
+  (`rellenarCaratulas`) prueba cada pista vía el canal nativo `artwork` y fija
+  `coverPath` a `localart://<mediaId>` (si hay) o `''` (si no, para no reprobar).
+  `CoverResolver` resuelve `localart://` con `LocalArtworkImage` (carga `loadThumbnail`
+  bajo demanda); mientras tanto se ve el placeholder tipado. Tri-estado de
+  `coverPath`: `null` (sin probar) · `''` (probado, sin carátula) · `localart://`.
+- **Pistas flotantes**: si MediaStore no aporta álbum/artista, `album_id`/
+  `artista_id` quedan null (no se agrupan).
+- **Gestión** (pantalla `/musica-local`, estilo Descargas): revisar manual o
+  automático (pref `musica_local_auto`); **ocultar por pista** (no la borra del
+  teléfono; se recuerda en `local_media_ocultas` y el escaneo la salta) y
+  **ocultar todas** (flag `musica_local_oculta`: quita todas las filas locales →
+  desaparecen de la UI/funcionamiento sin tocar ninguna query; revelar = re-indexa);
+  **buscador difuso** (tolerante a typos/símbolos, núcleo `fuzzy.dart`).
+- **Dedupe** (la del PC prima): al terminar un escaneo o un sync, se eliminan las
+  locales que dupliquen una sincronizada por **título+artista+álbum normalizados +
+  duración ±10 s** (`local_dedupe.dart`), remapando sus playlists/favoritos a la
+  del PC. Núcleo puro en `features/local_media/application/`.
+- **Aislamiento Connect**: una pista local nunca sube al PC (`historial`/
+  `favoritos` `noSubidos()` filtran `pista_id > 0`) ni se manda como comando
+  remoto (`playback.dart`/menú de pista filtran `id < 0`).
+
 ### Datos propios del móvil (fuente de verdad local)
 
 ```text

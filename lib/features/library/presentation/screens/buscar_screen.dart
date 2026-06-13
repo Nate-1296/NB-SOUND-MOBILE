@@ -392,6 +392,8 @@ class _MejorResultado extends ConsumerWidget {
     late final String subtitulo;
     late final ImageProvider? img;
     late final bool circular;
+    late final CoverKind kind;
+    late final Object? seed;
     late final VoidCallback onTap;
     switch (tipo) {
       case TipoResultado.artistas:
@@ -400,6 +402,8 @@ class _MejorResultado extends ConsumerWidget {
         subtitulo = 'Artista';
         img = resolver.imageFor(a.imagenPath, cacheWidth: px);
         circular = true;
+        kind = CoverKind.artist;
+        seed = a.id;
         onTap = () {
           _regArtista(ref, a);
           context.push('/artist/${a.id}');
@@ -410,6 +414,8 @@ class _MejorResultado extends ConsumerWidget {
         subtitulo = 'Álbum';
         img = resolver.imageFor(a.coverPath, cacheWidth: px);
         circular = false;
+        kind = CoverKind.album;
+        seed = a.id;
         onTap = () {
           _regAlbum(ref, a);
           context.push('/album/${a.id}');
@@ -420,6 +426,8 @@ class _MejorResultado extends ConsumerWidget {
         subtitulo = 'Playlist';
         img = null;
         circular = false;
+        kind = CoverKind.playlist;
+        seed = p.id;
         onTap = () {
           _regPlaylist(ref, p);
           context.push('/playlist/${p.id}');
@@ -430,6 +438,8 @@ class _MejorResultado extends ConsumerWidget {
         subtitulo = 'Canción · ${p.artistaNombre}';
         img = resolver.imageFor(p.coverPath, cacheWidth: px);
         circular = false;
+        kind = CoverKind.track;
+        seed = p.id;
         onTap = () {
           _regPista(ref, p);
           ref.read(playbackActionsProvider).reproducirColeccion(r.pistas, 0);
@@ -453,23 +463,16 @@ class _MejorResultado extends ConsumerWidget {
                 child: Row(
                   children: <Widget>[
                     if (circular)
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: c.bg3,
-                          shape: BoxShape.circle,
-                          image: img != null
-                              ? DecorationImage(image: img, fit: BoxFit.cover)
-                              : null,
-                        ),
-                        alignment: Alignment.center,
-                        child: img == null
-                            ? Icon(AppIcons.user, color: c.text3, size: 30)
-                            : null,
-                      )
+                      ArtistAvatar(image: img, size: 72, seed: seed)
                     else
-                      Cover(image: img, size: 72, radius: 10, shadow: false),
+                      Cover(
+                        image: img,
+                        size: 72,
+                        radius: 10,
+                        shadow: false,
+                        kind: kind,
+                        coverSeed: seed,
+                      ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -617,32 +620,22 @@ class _RecienteTile extends StatelessWidget {
     final ImageProvider? img = (item.cover == null)
         ? null
         : resolver.imageFor(item.cover, cacheWidth: coverCachePx(context, 44));
+    final CoverKind kind = switch (item.tipo) {
+      TipoItemBusqueda.album => CoverKind.album,
+      TipoItemBusqueda.artista => CoverKind.artist,
+      TipoItemBusqueda.playlist => CoverKind.playlist,
+      TipoItemBusqueda.pista => CoverKind.track,
+    };
     final Widget leading = item.circular
-        ? Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: c.bg3,
-              shape: BoxShape.circle,
-              image: img != null
-                  ? DecorationImage(image: img, fit: BoxFit.cover)
-                  : null,
-            ),
-            alignment: Alignment.center,
-            child: img == null ? Icon(AppIcons.user, color: c.text3) : null,
-          )
-        : (item.tipo == TipoItemBusqueda.playlist
-            ? Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: c.bg3,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Icon(AppIcons.note, color: c.text3, size: 22),
-              )
-            : Cover(image: img, size: 44, radius: 8, shadow: false));
+        ? ArtistAvatar(image: img, size: 44, seed: item.id)
+        : Cover(
+            image: img,
+            size: 44,
+            radius: 8,
+            shadow: false,
+            kind: kind,
+            coverSeed: item.id,
+          );
     return ListTile(
       dense: true,
       onTap: onTap,

@@ -13,6 +13,7 @@ import '../../features/library/presentation/screens/local_playlist_detail_screen
 import '../../features/library/presentation/screens/playlist_detail_screen.dart';
 import '../../features/library/presentation/screens/playlists_screen.dart';
 import '../../features/equalizer/presentation/ecualizador_screen.dart';
+import '../../features/local_media/presentation/local_media_screen.dart';
 import '../../features/offline/presentation/descargas_screen.dart';
 import '../../features/player/application/playback.dart';
 import '../../features/player/presentation/player_screen.dart';
@@ -177,6 +178,12 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((Ref ref) {
         parentNavigatorKey: _rootKey,
         builder: (BuildContext context, GoRouterState state) =>
             const IconoAppScreen(),
+      ),
+      GoRoute(
+        path: '/musica-local',
+        parentNavigatorKey: _rootKey,
+        builder: (BuildContext context, GoRouterState state) =>
+            const LocalMediaScreen(),
       ),
       GoRoute(
         path: '/sync',

@@ -50,6 +50,7 @@ dependencies:
   crypto: ^3.0.3               # validar hash_sha256 del audio descargado
   device_info_plus: ^13.1.0
   image_picker: ^1.1.2         # elegir foto de perfil desde la galería
+  permission_handler: ^12.0.3  # permiso de audio (música local del teléfono)
 
 dev_dependencies:
   flutter_test:

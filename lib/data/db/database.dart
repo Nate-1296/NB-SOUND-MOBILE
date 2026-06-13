@@ -11,6 +11,7 @@ import 'daos/downloads_dao.dart';
 import 'daos/favorites_dao.dart';
 import 'daos/followed_playlists_dao.dart';
 import 'daos/history_dao.dart';
+import 'daos/local_media_dao.dart';
 import 'daos/local_playlists_dao.dart';
 import 'daos/sync_state_dao.dart';
 import 'tables.dart';
@@ -33,6 +34,7 @@ part 'database.g.dart';
     FavoritosLocal,
     DescargasAudio,
     AssetsDescargados,
+    LocalMediaOcultas,
     SyncEstado,
     PcEmparejado,
   ],
@@ -45,6 +47,7 @@ part 'database.g.dart';
     SyncStateDao,
     LocalPlaylistsDao,
     FollowedPlaylistsDao,
+    LocalMediaDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -54,7 +57,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -80,6 +83,17 @@ class AppDatabase extends _$AppDatabase {
           // v5: descripción opcional de las playlists locales.
           if (from < 5) {
             await m.addColumn(playlistsLocales, playlistsLocales.descripcion);
+          }
+          // v6: origen del catálogo (pc | local) para integrar la música local
+          // del teléfono en las mismas tablas sin pisar el espejo del PC.
+          if (from < 6) {
+            await m.addColumn(pistas, pistas.origen);
+            await m.addColumn(albums, albums.origen);
+            await m.addColumn(artistas, artistas.origen);
+          }
+          // v7: pistas de música local ocultadas por el usuario (no se re-indexan).
+          if (from < 7) {
+            await m.createTable(localMediaOcultas);
           }
         },
       );

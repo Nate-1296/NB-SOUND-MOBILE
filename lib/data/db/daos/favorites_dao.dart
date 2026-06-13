@@ -95,8 +95,11 @@ class FavoritesDao extends DatabaseAccessor<AppDatabase>
         .map((rows) => rows.map((r) => r.readTable(pistas)).toList());
   }
 
-  Future<List<FavoritoEntry>> noSubidos() =>
-      (select(favoritosLocal)..where((t) => t.subido.equals(false))).get();
+  /// Favoritos pendientes de subir al PC. Excluye ids negativos (música local
+  /// del teléfono): jamás se relaciona con el PC/Connect.
+  Future<List<FavoritoEntry>> noSubidos() => (select(favoritosLocal)
+        ..where((t) => t.subido.equals(false) & t.pistaId.isBiggerThanValue(0)))
+      .get();
 
   Future<void> marcarSubidos(List<int> pistaIds) =>
       (update(favoritosLocal)..where((t) => t.pistaId.isIn(pistaIds)))

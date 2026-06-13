@@ -14,9 +14,9 @@ import '../../../offline/application/image_resolver.dart';
 import '../../../player/application/playback.dart';
 import '../../../profile/application/profile_providers.dart';
 import '../../application/library_providers.dart';
-import '../../application/playlist_covers.dart';
 import '../widgets/library_cards.dart';
 import '../widgets/pista_list.dart';
+import '../widgets/playlist_art.dart';
 
 /// Pestaña Inicio: página dinámica que refleja los gustos del usuario (recientes,
 /// más escuchadas, favoritas, artistas) y ofrece selecciones del catálogo
@@ -215,6 +215,8 @@ class _TrackRail extends ConsumerWidget {
                         image: resolver.imageFor(p.coverPath, cacheWidth: px),
                         size: w,
                         radius: 14,
+                        kind: CoverKind.track,
+                        coverSeed: p.id,
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -478,27 +480,15 @@ class _QuickTile extends ConsumerWidget {
                   : ref.watch(pistasDePlaylistProvider(item.playlistId!)))
               .value ??
               const <Pista>[];
-      // Hasta 4 portadas distintas (salta repetidas y pistas sin portada) para
-      // armar el mosaico; placeholder si ninguna tiene.
-      final CoverResolver resolver = ref.watch(coverResolverProvider);
-      final int px = coverCachePx(context, lado);
-      final List<ImageProvider> covers = <ImageProvider>[
-        for (final String path in portadasDistintas(pistas))
-          if (resolver.imageFor(path, cacheWidth: px)
-              case final ImageProvider img)
-            img,
-      ];
-      leading = covers.length >= 4
-          ? CoverMosaic(images: covers, size: lado, radius: 0, shadow: false)
-          : Cover(
-              image: covers.isNotEmpty ? covers.first : null,
-              size: lado,
-              radius: 0,
-              shadow: false,
-              overlay: covers.isEmpty
-                  ? Center(child: Icon(AppIcons.note, color: c.text2, size: 20))
-                  : null,
-            );
+      // Mosaico de portadas distintas; pistas sin carátula → placeholder tipado;
+      // ninguna carátula → placeholder de playlist.
+      leading = PlaylistArt(
+        pistas: pistas,
+        size: lado,
+        radius: 0,
+        shadow: false,
+        seed: item.playlistId,
+      );
     }
 
     return Material(

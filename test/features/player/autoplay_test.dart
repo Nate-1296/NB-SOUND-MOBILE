@@ -8,6 +8,7 @@ Pista _p(int id, {int? artistaId, String? genero}) => Pista(
       artistaNombre: 'A$id',
       duracionSeg: 100,
       syncVersion: 0,
+      origen: 'pc',
       artistaId: artistaId,
       genero: genero,
     );
