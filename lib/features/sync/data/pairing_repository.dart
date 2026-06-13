@@ -252,6 +252,23 @@ class PairingRepository {
     }
   }
 
+  /// Heartbeat de presencia: ping **autenticado** (con el `device_token`) para que
+  /// el PC marque este dispositivo como "conectado ahora" en su Sincronización
+  /// aunque no esté en Connect (sin WS abierto). El PC actualiza `ultima_conexion`
+  /// al recibirlo. Best-effort: un fallo se reintenta en el siguiente tick.
+  Future<void> heartbeat(PairedPc pc) async {
+    try {
+      final Dio dio = _dioFactory(
+        baseUrl: pc.baseUrl,
+        fingerprint: pc.fingerprint,
+        token: _store.deviceToken,
+      );
+      await dio.get<dynamic>('/api/v1/ping');
+    } catch (_) {
+      // Presencia best-effort: no rompe nada si el PC no responde.
+    }
+  }
+
   Future<void> unpair() => _store.clear();
 
   static Map<String, dynamic> _asMap(dynamic data) =>

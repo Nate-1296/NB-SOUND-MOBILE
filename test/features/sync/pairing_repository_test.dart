@@ -230,4 +230,63 @@ void main() {
       );
     });
   });
+
+  test('heartbeat() pinga /api/v1/ping con el token del dispositivo', () async {
+    final _FakeStore store = _FakeStore();
+    store.saved = const PairedPc(
+      deviceToken: 'tok',
+      fingerprint: 'fp',
+      host: 'h',
+      port: 8731,
+      nombre: 'PC',
+    );
+    String? path;
+    Future<String?> Function()? tokenCb;
+    final PairingRepository repo = PairingRepository(
+      store,
+      dioFactory: ({
+        required String baseUrl,
+        String? fingerprint,
+        Future<String?> Function()? token,
+      }) {
+        tokenCb = token;
+        final Dio dio = Dio(BaseOptions(baseUrl: baseUrl));
+        dio.httpClientAdapter = _PathCapturingAdapter((RequestOptions o) {
+          path = o.path;
+        });
+        return dio;
+      },
+    );
+
+    await repo.heartbeat(store.saved!);
+
+    expect(path, '/api/v1/ping');
+    expect(tokenCb, isNotNull); // el heartbeat va autenticado
+    expect(await tokenCb!(), 'tok');
+  });
+}
+
+/// Adaptador que captura el request y responde 200 {ok:true}.
+class _PathCapturingAdapter implements HttpClientAdapter {
+  _PathCapturingAdapter(this.onRequest);
+  final void Function(RequestOptions) onRequest;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    onRequest(options);
+    return ResponseBody.fromString(
+      jsonEncode(<String, dynamic>{'ok': true}),
+      200,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

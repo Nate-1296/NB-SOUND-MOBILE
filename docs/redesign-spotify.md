@@ -631,3 +631,16 @@ firmados). Todo lo de abajo es **as-built**, no aspiracional.
   reproducción al quitar la app de recientes (señal canónica Android/ChromeOS) y
   `NbSoundApp` detiene el handler en `AppLifecycleState.detached` (cierre de ventana en
   Chromebook). Segundo plano (paused/hidden) **sigue sonando** como antes.
+
+### Presencia real de dispositivos en la Sincronización del PC (2026-06-13)
+La Vista de Sincronización del PC mostraba "sin dispositivos conectados" aunque el
+móvil estuviera online (solo contaba WS abiertos, que casi siempre eran 0 fuera de
+Connect). Ahora muestra el estado REAL por dispositivo (verde "Conectado"):
+- **PC (lo commitea el usuario)**: `servidor_sync` rastrea WS por dispositivo
+  (`_ws_dispositivos`) y el middleware trata `/ping` con token como heartbeat
+  (refresca `ultima_conexion`); `sync_repositorio.dispositivos_conectados_ids`
+  (ventana ~75 s); `ModeloSincronizacion` marca `conectado` por dispositivo y refresca
+  con un `QTimer` ~2 s; `clientesConectados` cuenta la unión; badge en
+  `VistaSincronizacion.qml`.
+- **Móvil**: `PairingRepository.heartbeat` (ping autenticado) + `Timer.periodic` ~25 s
+  en primer plano (`NbSoundApp`). Test: `heartbeat()` va con el device_token.

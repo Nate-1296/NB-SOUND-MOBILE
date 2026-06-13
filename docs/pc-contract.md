@@ -96,6 +96,11 @@ WebSocket) cuando `tls == true`; `http://`/`ws://` si `tls == false`. Fija
 ```jsonc
 200 → { "ok": true, "servicio": "NB Sound", "version_protocolo": 1 }
 ```
+Es público (sin auth). **Heartbeat de presencia**: si el cliente envía igualmente
+su `Authorization: Bearer <device_token>`, el PC actualiza la `ultima_conexion` del
+dispositivo y lo muestra **"conectado ahora"** en su pantalla de Sincronización
+(presencia real, no solo "última conexión"), aunque el dispositivo no esté en
+Connect (sin WS abierto). El móvil lo envía cada ~25 s mientras está en primer plano.
 
 ### 4.2 `POST /api/v1/pair`
 Request:

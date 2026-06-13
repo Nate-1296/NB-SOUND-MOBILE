@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/di/providers.dart';
 import '../core/network/pinned_http_overrides.dart';
+import '../core/security/secure_store.dart';
 import '../core/router/app_router.dart';
 import '../features/equalizer/application/equalizer_controller.dart';
 import '../features/library/application/playlist_cover_prefetch.dart';
@@ -33,8 +34,14 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
   /// Cada cuánto re-sincronizar mientras la app está en primer plano.
   static const Duration _intervaloAutoSync = Duration(minutes: 5);
 
+  /// Cada cuánto enviar el heartbeat de presencia al PC (para que la
+  /// Sincronización del PC muestre este dispositivo "conectado ahora" aunque no
+  /// esté en Connect). Más corto que la ventana de presencia del PC (~75 s).
+  static const Duration _intervaloHeartbeat = Duration(seconds: 25);
+
   AppLifecycleListener? _lifecycle;
   Timer? _timer;
+  Timer? _heartbeatTimer;
   bool _enPrimerPlano = true;
 
   /// El prefetch de portadas de playlists solo tiene sentido una vez por sesión
@@ -85,6 +92,21 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
         _sincronizar();
       }
     });
+    _heartbeatTimer = Timer.periodic(_intervaloHeartbeat, (_) {
+      if (_enPrimerPlano) {
+        _heartbeat();
+      }
+    });
+  }
+
+  /// Heartbeat de presencia (best-effort): mientras la app está en primer plano y
+  /// hay un PC emparejado, le avisa que sigue online para que lo muestre conectado.
+  void _heartbeat() {
+    final PairedPc? pc = ref.read(syncControllerProvider).pc;
+    if (pc == null) {
+      return;
+    }
+    ref.read(pairingRepositoryProvider).heartbeat(pc);
   }
 
   /// Best-effort: `syncNow` no hace nada si no hay PC emparejado o si ya hay una
@@ -110,6 +132,7 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
   @override
   void dispose() {
     _timer?.cancel();
+    _heartbeatTimer?.cancel();
     _lifecycle?.dispose();
     super.dispose();
   }
