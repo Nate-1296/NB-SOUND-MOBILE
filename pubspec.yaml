@@ -1,7 +1,7 @@
 name: nb_sound_mobile
 description: "App móvil del ecosistema NB Sound (Android, iOS y tablets)."
 publish_to: "none"
-version: 0.1.0+1
+version: 0.1.1+2
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -27,6 +27,7 @@ dependencies:
   # --- Audio (reproducción + background) ---
   just_audio: ^0.10.5
   audio_service: ^0.18.18
+  audio_session: ^0.1.25
 
   # --- Imágenes: caché en disco/memoria + redimensionado de portadas remotas ---
   cached_network_image: ^3.4.1

@@ -2,15 +2,18 @@ package com.nbsound.nb_sound_mobile
 
 import android.content.ComponentName
 import android.content.ContentUris
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Size
+import com.nbsound.nb_sound_mobile.widget.WidgetHelper
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -21,7 +24,9 @@ class MainActivity : AudioServiceActivity() {
 
     private val channelName = "com.nbsound/app_icon"
     private val localMediaChannel = "com.nbsound/local_media"
+    private val widgetChannel = "com.nbsound/widget"
     private val pkg = "com.nbsound.nb_sound_mobile"
+    private var initialRoute: String? = null
 
     // Las consultas a MediaStore y la decodificación de carátulas pueden tardar
     // (miles de pistas); se hacen fuera del hilo de UI para no bloquear/ANR. La
@@ -81,6 +86,52 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, widgetChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "updateWidget" -> {
+                        val title = call.argument<String>("title") ?: "NB Sound"
+                        val artist = call.argument<String>("artist") ?: ""
+                        val album = call.argument<String>("album") ?: ""
+                        val isPlaying = call.argument<Boolean>("isPlaying") ?: false
+                        val artUri = call.argument<String>("artUri")
+                        ioExecutor.execute {
+                            WidgetHelper.saveTrackState(
+                                applicationContext,
+                                title,
+                                artist,
+                                album,
+                                isPlaying,
+                                artUri
+                            )
+                            mainHandler.post { result.success(true) }
+                        }
+                    }
+                    "getInitialRoute" -> {
+                        val r = initialRoute
+                        initialRoute = null
+                        result.success(r)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        intent?.getStringExtra("route")?.let {
+            initialRoute = it
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("route")?.let { route ->
+            initialRoute = route
+            flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, widgetChannel).invokeMethod("onNavigateToRoute", route)
+            }
+        }
     }
 
     /**

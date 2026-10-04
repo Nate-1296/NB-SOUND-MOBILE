@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../../data/db/database.dart';
@@ -35,11 +37,15 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     );
     final AudioPlayer player = AudioPlayer(audioPipeline: pipeline);
     _player = player;
+    if (android) {
+      _initAudioSession(player);
+    }
     player.playbackEventStream.listen(_broadcastState);
     player.currentIndexStream.listen((int? index) {
       final List<MediaItem> q = queue.value;
       if (index != null && index >= 0 && index < q.length) {
         mediaItem.add(q[index]);
+        _syncWidget(player.playing);
       }
     });
     player.processingStateStream.listen((ProcessingState s) {
@@ -117,6 +123,7 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
     queue.add(items);
     if (initialIndex >= 0 && initialIndex < items.length) {
       mediaItem.add(items[initialIndex]);
+      _syncWidget(autoPlay);
     }
     final AudioPlayer? player = _player;
     if (player == null) {
@@ -151,6 +158,7 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
       nq[idx] = updated;
       queue.add(nq);
     }
+    _syncWidget(_player?.playing ?? false);
   }
 
   /// Añade [p] al final de la cola (la fuente ya viene resuelta del controlador).
@@ -414,6 +422,53 @@ class NbAudioHandler extends BaseAudioHandler with SeekHandler {
         queueIndex: event.currentIndex,
       ),
     );
+    _syncWidget(playing);
+  }
+
+  static const MethodChannel _widgetChannel = MethodChannel('com.nbsound/widget');
+
+  void _syncWidget(bool isPlaying) {
+    if (kIsWeb || !Platform.isAndroid) return;
+    final MediaItem? item = mediaItem.value;
+    try {
+      _widgetChannel.invokeMethod<void>('updateWidget', <String, dynamic>{
+        'title': item?.title ?? 'NB Sound',
+        'artist': item?.artist ?? 'Sin reproducción activa',
+        'album': item?.album ?? '',
+        'isPlaying': isPlaying,
+        'artUri': item?.artUri?.toString(),
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _initAudioSession(AudioPlayer player) async {
+    try {
+      final AudioSession session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      session.interruptionEventStream.listen((AudioInterruptionEvent event) {
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              player.setVolume(player.volume / 2);
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              player.pause();
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              player.setVolume(1.0);
+            case AudioInterruptionType.pause:
+              player.play();
+            case AudioInterruptionType.unknown:
+              break;
+          }
+        }
+      });
+      session.becomingNoisyEventStream.listen((_) {
+        player.pause();
+      });
+    } catch (_) {}
   }
 
   static AudioProcessingState _mapProcessingState(ProcessingState s) {

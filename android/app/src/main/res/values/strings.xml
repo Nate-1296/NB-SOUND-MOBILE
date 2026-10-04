@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NB Sound</string>
+    <string name="widget_compact_description">Reproductor compacto Material You con carátula y controles rápidos</string>
+    <string name="widget_card_description">Tarjeta de reproducción extendida Material You con carátula amplia y controles</string>
+    <string name="widget_quick_actions_description">Barra de accesos rápidos a Reanudar, Favoritas, Biblioteca y Conectar</string>
+</resources>

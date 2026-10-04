@@ -68,8 +68,8 @@ Future<void> main() async {
           config: const AudioServiceConfig(
             androidNotificationChannelId: 'com.nbsound.audio',
             androidNotificationChannelName: 'NB Sound',
-            androidNotificationOngoing: true,
-            androidStopForegroundOnPause: true,
+            androidStopForegroundOnPause: false,
+            androidNotificationIcon: 'drawable/ic_stat_music',
           ),
         )
       : NbAudioHandler(preview: true);

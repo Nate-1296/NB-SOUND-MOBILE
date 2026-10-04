@@ -28,6 +28,7 @@ class IconoAppScreen extends ConsumerWidget {
     final String activo = ref.watch(appIconProvider);
     final List<_OpcionIcono> opciones = <_OpcionIcono>[
       const _OpcionIcono('', 'Por defecto', null),
+      const _OpcionIcono('nothing', 'Nothing', 'assets/app_icons/logo_nothing.png'),
       for (final NbThemeDef t in kNbThemes)
         _OpcionIcono(t.key, t.label, 'assets/app_icons/logo_${t.key}.png'),
     ];

@@ -62,7 +62,7 @@ def alias(name, icon, enabled):
 
 def main():
     ks = keys()
-    assert len(ks) == 63, f'esperaba 63 iconos, hay {len(ks)}'
+    assert len(ks) == 64, f'esperaba 64 iconos, hay {len(ks)}'
     with open(MANIFEST, encoding='utf-8') as fh:
         xml = fh.read()
 

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#C25939</color>
+    <!-- Paleta base NB Sound (Terracota y superficies oscuras) -->
+    <color name="widget_bg">#181514</color>
+    <color name="widget_card_bg">#231F1E</color>
+    <color name="widget_surface_variant">#2E2928</color>
+    <color name="widget_accent">#C25939</color>
+    <color name="widget_accent_container">#4A2518</color>
+    <color name="widget_text_primary">#F5EFEB</color>
+    <color name="widget_text_secondary">#B8AFA9</color>
+    <color name="widget_icon_tint">#F5EFEB</color>
 </resources>

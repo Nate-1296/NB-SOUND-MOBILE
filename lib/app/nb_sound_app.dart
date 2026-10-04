@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../core/di/providers.dart';
 import '../core/network/pinned_http_overrides.dart';
@@ -61,6 +64,12 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
     // concede desde Ajustes › Música local.
     WidgetsBinding.instance.addPostFrameCallback(
         (_) => ref.read(localMediaControllerProvider.notifier));
+    // Solicita permiso de notificaciones en Android 13+ (necesario para la
+    // notificación multimedia del sistema en Android 13, 14, 15 y 16).
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _solicitarPermisoNotificaciones());
+    // Escucha y procesa rutas lanzadas desde los widgets de la pantalla de inicio.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revisarRutaWidget());
     _lifecycle = AppLifecycleListener(
       onStateChange: (AppLifecycleState estado) {
         final bool resumed = estado == AppLifecycleState.resumed;
@@ -127,6 +136,40 @@ class _NbSoundAppState extends ConsumerState<NbSoundApp> {
           ref.read(catalogDaoProvider),
           ref.read(localPlaylistsDaoProvider),
         );
+  }
+
+  Future<void> _solicitarPermisoNotificaciones() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final PermissionStatus status = await Permission.notification.status;
+        if (!status.isGranted) {
+          await Permission.notification.request();
+        }
+      } catch (_) {
+        // En caso de fallo en el canal de permisos, no bloquear el flujo.
+      }
+    }
+  }
+
+  Future<void> _revisarRutaWidget() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      const MethodChannel channel = MethodChannel('com.nbsound/widget');
+      channel.setMethodCallHandler((MethodCall call) async {
+        if (call.method == 'onNavigateToRoute') {
+          final String? route = call.arguments as String?;
+          if (route != null && route.isNotEmpty) {
+            ref.read(appRouterProvider).go(route);
+          }
+        }
+      });
+      try {
+        final String? initial =
+            await channel.invokeMethod<String>('getInitialRoute');
+        if (initial != null && initial.isNotEmpty) {
+          ref.read(appRouterProvider).go(initial);
+        }
+      } catch (_) {}
+    }
   }
 
   @override

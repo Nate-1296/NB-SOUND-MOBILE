@@ -1,9 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Reproducción en background (audio_service). -->
+    <!-- Reproducción en background (audio_service) y notificaciones (Android 13+). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <!-- Sync local: red (HTTP/WS al PC + mDNS) y cámara (escaneo de QR). -->
@@ -67,6 +68,54 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>
             </intent-filter>
         </receiver>
+
+        <!-- Widgets de la pantalla de inicio (Material You / M3) -->
+        <receiver
+            android:name=".widget.CompactPlayerWidget"
+            android:label="Reproductor Compacto"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_compact_player_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CardPlayerWidget"
+            android:label="Tarjeta de Reproducción"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_card_player_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.QuickActionsWidget"
+            android:label="Acciones Rápidas"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_actions_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.nbsound.widget.ACTION_PLAY_PAUSE" />
+                <action android:name="com.nbsound.widget.ACTION_NEXT" />
+                <action android:name="com.nbsound.widget.ACTION_PREV" />
+            </intent-filter>
+        </receiver>
+
         <!-- AppIconStart -->
         <!-- Generado por tool/gen_icon_aliases.py; no editar a mano. -->
         <activity-alias
@@ -526,6 +575,17 @@
             android:exported="true"
             android:targetActivity=".MainActivity"
             android:icon="@drawable/ic_app_noche_arcade">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.nbsound.nb_sound_mobile.AppIcon_nothing"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:icon="@drawable/ic_app_nothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

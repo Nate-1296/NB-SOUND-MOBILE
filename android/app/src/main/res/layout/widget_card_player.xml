@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_card_bg"
+    android:padding="16dp">
+
+    <!-- Fila Superior: Carátula + Información -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Carátula amplia -->
+        <ImageView
+            android:id="@+id/widget_card_cover"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            android:scaleType="centerCrop"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="@string/app_name" />
+
+        <!-- Título, Artista y Álbum -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="14dp">
+
+            <TextView
+                android:id="@+id/widget_card_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="NB Sound"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/widget_text_primary"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/widget_card_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sin reproducción activa"
+                android:textSize="13sp"
+                android:textColor="@color/widget_text_secondary"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_marginTop="3dp" />
+
+            <TextView
+                android:id="@+id/widget_card_album"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="@color/widget_accent"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Fila Inferior: Controles completos centrados -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="10dp">
+
+        <!-- Botón Anterior -->
+        <ImageButton
+            android:id="@+id/widget_card_prev"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="16dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_widget_prev"
+            android:contentDescription="Pista anterior"
+            android:scaleType="centerInside" />
+
+        <!-- Botón Play/Pausa Grande -->
+        <ImageButton
+            android:id="@+id/widget_card_play"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/widget_circle_button"
+            android:src="@drawable/ic_widget_play"
+            android:contentDescription="Reproducir o pausar"
+            android:scaleType="centerInside" />
+
+        <!-- Botón Siguiente -->
+        <ImageButton
+            android:id="@+id/widget_card_next"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="16dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_widget_next"
+            android:contentDescription="Siguiente pista"
+            android:scaleType="centerInside" />
+    </LinearLayout>
+</LinearLayout>
